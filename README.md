@@ -66,4 +66,7 @@ Windows client's `game/dota/replays/` and launch the client with `+playdemo repl
 - `dotasim/env/env.py` exposes `DotaEnv.reset(matchup)` and `step(actions)`.
 - `dotasim/train/rollout.py` runs N envs and writes `status.json` for `dotasim/ui/status.html`.
 
-Not affiliated with Valve. The repository contains no game files.
+## License
+
+MIT. Not affiliated with or endorsed by Valve. The repository contains no game files; you need
+your own copy of Dota 2. Dota 2 is a trademark of Valve Corporation.
