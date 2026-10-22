@@ -28,6 +28,7 @@ class Matchup:
     frames: int = 10
     difficulty: int = 4
     cap_s: float = 600
+    watch_teams: tuple[int, ...] = ()   # extra teams whose worldstate is consumed and returned (recording)
 
 
 @dataclass
@@ -38,6 +39,7 @@ class _Team:
     stream: object = None          # async generator of raw worldstate bytes
     ws_idx: int = -1               # tick-derived index of the latest worldstate since calibration (calib ws = 0)
     calib_t: float = 0.0           # dota_time of the calibration worldstate
+    returned: bool = False         # obs for this team is handed back from reset/step
     last: WorldState | None = None
 
 
@@ -70,7 +72,9 @@ class DotaEnv:
         tokens = await self.instance.handshake()
         roles = self.instance.lua.roles
         self._teams = {t: _Team(t, tok, roles.get(tok) == "controlled") for t, tok in tokens.items()}
-        watch = [tm for tm in self._teams.values() if tm.controlled] or [self._teams[2]]
+        for tm in self._teams.values():
+            tm.returned = tm.controlled or tm.team in matchup.watch_teams
+        watch = [tm for tm in self._teams.values() if tm.returned] or [self._teams[2]]
         for tm in watch:
             tm.stream = self.instance.worldstates(tm.team)
         self.phase = "pregame"
@@ -82,6 +86,7 @@ class DotaEnv:
             tm.ws_idx, tm.calib_t, tm.last = 0, ws.dota_time, ws
             if tm.controlled:
                 self.channel.write_calib(tm.token, ws.dota_time, matchup.frames)
+            if tm.returned:
                 obs[tm.team] = ws
         self.phase = "playing"
         self._hist.append((time.monotonic(), ws.dota_time))
@@ -123,7 +128,7 @@ class DotaEnv:
             tm.ws_idx = round((ws.dota_time - tm.calib_t) * TICKS_PER_S / self.matchup.frames)
             tm.last = ws
             self._merge_lua_obs(tm, ws)
-            if tm.controlled:
+            if tm.returned:
                 obs[tm.team] = ws
         self._steps += 1
         if raws:
@@ -155,12 +160,19 @@ class DotaEnv:
         return False
 
     def _merge_lua_obs(self, tm: _Team, ws: WorldState) -> None:
+        # observer-reported stats for every hero the config names (both teams' observers, merged by player id)
+        ally = self.instance.lua_ally()
+        for pid, hero in ws.heroes.items():
+            a = ally.get(pid)
+            if a:
+                hero.last_hits, hero.denies, hero.gold, hero.net_worth = a["last_hits"], a["denies"], a["gold"], a["net_worth"]
+                hero.level = max(hero.level, a["level"])
         if not tm.controlled:
             return
-        o = self.instance.lua_obs().get(tm.token)
+        o = self.instance.lua_obs().get(tm.token)  # per-step stats for the controlled hero override the observer
         hero = ws.hero_of(tm.team)
         if o and hero:
-            hero.last_hits, hero.denies, hero.gold, hero.xp = o["last_hits"], o["denies"], o["gold"], o["xp"]
+            hero.last_hits, hero.denies, hero.gold = o["last_hits"], o["denies"], o["gold"]
 
     async def close(self) -> None:
         try:

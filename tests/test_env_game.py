@@ -83,6 +83,36 @@ def test_valve_game_ends_clean():
     asyncio.run(asyncio.wait_for(run(), 900))
 
 
+def test_valve_heroes_carry_observer_stats():
+    """Valve-driven heroes never print LUAOBS; the observer filler reports their stats instead, for both teams."""
+    env = _env()
+
+    async def run():
+        obs = await env.reset(Matchup(heroes={0: SF, 5: SF}, roles={0: "valve", 5: "valve"}, watch_teams=(2, 3), cap_s=400))
+        assert set(obs) == {2, 3}
+        try:
+            seen = False
+            for _ in range(2000):
+                obs, done, info = await env.step({})
+                assert not done, info
+                h2, h3 = obs[2].hero_of(2), obs[3].hero_of(3)
+                if seen:
+                    # once reported, stats never fall back to unknown
+                    assert h2.last_hits >= 0 and h2.gold >= 0 and h2.net_worth >= 0 and h3.level >= 1
+                    foe = obs[2].hero_of(3)  # only present in team 2's view when visible (fog of war)
+                    if foe is not None:
+                        assert foe.level >= 1 and foe.gold >= 0  # enemy stats arrive via team 3's observer, merged by player id
+                elif h2.last_hits >= 0 and h3.gold > 0:
+                    seen = True
+                if obs[2].dota_time >= 120 and seen:
+                    break
+            assert seen, "observer stats never arrived"
+        finally:
+            await env.close()
+
+    asyncio.run(asyncio.wait_for(run(), 400))
+
+
 def test_process_death_is_done():
     env = _env()
 

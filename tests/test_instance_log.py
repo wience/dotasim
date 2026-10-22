@@ -25,6 +25,14 @@ def test_split_luardy_line_is_parsed_once_complete(tmp_path):
     assert inst.lua.roles == {"abc123": "controlled", "def456": "valve"}
 
 
+def test_ally_stats_line_is_parsed(tmp_path):
+    inst = _instance(tmp_path)
+    with open(inst.cfg.console_log, "a") as f:
+        f.write("10/22 21:00:00 [VScript] LUAALLY token=abc team=2 pid=0 lh=3 dn=1 gold=640 nw=900 lvl=2\n")
+    inst.console_tail()
+    assert inst.lua.ally[0] == {"last_hits": 3, "denies": 1, "gold": 640, "net_worth": 900, "level": 2}
+
+
 def test_split_post_game_line_is_seen(tmp_path):
     inst = _instance(tmp_path)
     log = inst.cfg.console_log

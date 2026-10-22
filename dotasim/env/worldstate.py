@@ -35,11 +35,11 @@ class Hero(Unit):
     player_id: int = -1
     kills: int = 0
     deaths: int = 0
-    # Not in the proto: filled from the Lua LUAOBS line by the env; -1 until then.
+    # Not in the proto: filled by the env from the Lua LUAOBS (controlled) or LUAALLY (observer) lines; -1 until then.
     last_hits: int = -1
     denies: int = -1
     gold: int = -1
-    xp: int = -1
+    net_worth: int = -1
 
 
 @dataclass(slots=True)

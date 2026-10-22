@@ -19,6 +19,7 @@ LUARDY = re.compile(r"LUARDY token=(\w+) team=(\d) pid=(\d+) role=(\w+)")
 LUASTAT = re.compile(r"LUASTAT token=(\w+) waits=(\d+) exec=(\d+) timeouts=(\d+) mismatch=(\d+)")
 LUAOBS = re.compile(r"LUAOBS token=(\w+) idx=(\d+) lh=(-?\d+) dn=(-?\d+) gold=(-?\d+) xp=(-?\d+) lvl=(-?\d+) to=(\d+) mm=(\d+)")
 LUAERR = re.compile(r"LUAERR token=(\w+) (.*)")
+LUAALLY = re.compile(r"LUAALLY token=(\w+) team=(\d) pid=(\d+) lh=(-?\d+) dn=(-?\d+) gold=(-?\d+) nw=(-?\d+) lvl=(-?\d+)")
 
 
 class InstanceError(RuntimeError):
@@ -96,6 +97,7 @@ class _LuaState:
     roles: dict[str, str] = field(default_factory=dict)       # token -> role
     stats: dict[str, dict] = field(default_factory=dict)      # token -> last LUASTAT
     obs: dict[str, dict] = field(default_factory=dict)        # token -> last LUAOBS
+    ally: dict[int, dict] = field(default_factory=dict)       # player_id -> last LUAALLY (observer-reported stats)
     errors: list[str] = field(default_factory=list)
 
 
@@ -199,6 +201,9 @@ class Instance:
                 self.lua.obs[m.group(1)] = {"idx": int(m.group(2)), "last_hits": int(m.group(3)), "denies": int(m.group(4)),
                                             "gold": int(m.group(5)), "xp": int(m.group(6)), "level": int(m.group(7)),
                                             "timeouts": int(m.group(8)), "mismatch": int(m.group(9))}
+            elif m := LUAALLY.search(line):
+                self.lua.ally[int(m.group(3))] = {"last_hits": int(m.group(4)), "denies": int(m.group(5)),
+                                                  "gold": int(m.group(6)), "net_worth": int(m.group(7)), "level": int(m.group(8))}
             elif m := LUASTAT.search(line):
                 self.lua.stats[m.group(1)] = {"waits": int(m.group(2)), "exec": int(m.group(3)),
                                               "timeouts": int(m.group(4)), "mismatch": int(m.group(5))}
@@ -228,6 +233,10 @@ class Instance:
     def lua_obs(self) -> dict[str, dict]:
         self._poll_log()
         return dict(self.lua.obs)
+
+    def lua_ally(self) -> dict[int, dict]:
+        self._poll_log()
+        return dict(self.lua.ally)
 
     # ---- worldstate ------------------------------------------------------
     async def worldstates(self, team: int, connect_timeout: float = 120) -> AsyncIterator[bytes]:

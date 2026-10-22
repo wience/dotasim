@@ -5,6 +5,7 @@ local M = {}
 local TICK = 1 / 30
 local WAIT_TIMEOUT_S = 1.0
 local FIND_RADIUS = 1600
+local OBS_EVERY_TICKS = 15
 
 -- Re-reads a Lua file under bots/ every call (require caches, so the cache entry is cleared first).
 function M.load_table(name)
@@ -104,7 +105,28 @@ function M.make_think(bot)
     local token = mint_token()
     print(string.format("LUARDY token=%s team=%d pid=%d role=%s", token, team, pid, role))
     if role == "valve" then return nil end
-    if role == "filler" then return function() end end
+    if role == "filler" then
+        -- The lowest-id filler on each team is the observer: it reports stats the worldstate
+        -- lacks (last hits, denies, gold, net worth, level) for every configured hero on its team.
+        local observer = true
+        for _, p in pairs(GetTeamPlayers(team)) do
+            if (cfg.roles or {})[p] == nil and p < pid then observer = false end
+        end
+        if not observer then return function() end end
+        local n = 0
+        return function()
+            n = n + 1
+            if n % OBS_EVERY_TICKS ~= 0 then return end
+            for i = 1, 5 do
+                local u = GetTeamMember(i)
+                if u ~= nil and (cfg.heroes or {})[u:GetPlayerID()] ~= nil then
+                    print(string.format("LUAALLY token=%s team=%d pid=%d lh=%d dn=%d gold=%d nw=%d lvl=%d",
+                        token, team, u:GetPlayerID(), safe(u, "GetLastHits"), safe(u, "GetDenies"),
+                        safe(u, "GetGold"), safe(u, "GetNetWorth"), safe(u, "GetLevel")))
+                end
+            end
+        end
+    end
     local st = { token = token, team = team, bot = bot, n = cfg.frames or 10, calib = nil,
                  waits = 0, exec = 0, timeouts = 0, mismatch = 0, errs = 0 }
     return function()
