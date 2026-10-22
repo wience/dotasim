@@ -55,6 +55,9 @@ class WorldState:
     game_state: int
     units: list[Unit] = field(default_factory=list)
     heroes: dict[int, Hero] = field(default_factory=dict)
+    player_kills: dict[int, int] = field(default_factory=dict)   # from players: present even when a hero is dead or hidden
+    player_deaths: dict[int, int] = field(default_factory=dict)
+    stats: dict[int, dict] = field(default_factory=dict)         # observer snapshot per player id at this step (env/loader)
 
     def hero_of(self, team: int) -> Hero | None:
         mine = [h for h in self.heroes.values() if h.team == team]
@@ -84,7 +87,9 @@ def parse(buf: bytes) -> WorldState:
     msg = pb.CMsgBotWorldState()
     msg.ParseFromString(buf)
     players = {p.player_id: p for p in msg.players}
-    ws = WorldState(team=msg.team_id, dota_time=msg.dota_time, game_time=msg.game_time, game_state=msg.game_state)
+    ws = WorldState(team=msg.team_id, dota_time=msg.dota_time, game_time=msg.game_time, game_state=msg.game_state,
+                    player_kills={p.player_id: p.kills for p in msg.players},
+                    player_deaths={p.player_id: p.deaths for p in msg.players})
     for u in msg.units:
         if u.unit_type == pb.CMsgBotWorldState.UnitType.Value("HERO") and u.player_id >= 0:
             p = players.get(u.player_id)

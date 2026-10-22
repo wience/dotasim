@@ -56,6 +56,7 @@ class DotaEnv:
         self._teams: dict[int, _Team] = {}
         self._hist: deque[tuple[float, float]] = deque(maxlen=30)
         self._steps = 0
+        self._hp_cache: dict[int, float] = {}
 
     # ---- lifecycle -------------------------------------------------------
     async def reset(self, matchup: Matchup) -> dict[int, WorldState]:
@@ -64,6 +65,7 @@ class DotaEnv:
         self.episode += 1
         self._steps = 0
         self._hist.clear()
+        self._hp_cache = {pid: 1.0 for pid in matchup.heroes}   # unseen heroes are assumed at full hp
         self.last_error = None
         self.cfg.frames, self.cfg.difficulty = matchup.frames, matchup.difficulty
         self.channel.write_config(matchup.frames, matchup.heroes, matchup.roles)
@@ -167,6 +169,12 @@ class DotaEnv:
     def _merge_lua_obs(self, tm: _Team, ws: WorldState) -> None:
         # observer-reported stats for every hero the config names (both teams' observers, merged by player id)
         ally = self.instance.lua_ally()
+        ws.stats = {pid: dict(a) for pid, a in ally.items()}
+        # last-known hp fraction per hero, carried while the hero is out of vision (reward shaping reads it)
+        for pid, hero in ws.heroes.items():
+            self._hp_cache[pid] = hero.hp / hero.hp_max if (hero.alive and hero.hp_max) else 0.0
+        for pid, frac in self._hp_cache.items():
+            ws.stats.setdefault(pid, {})["hp_frac"] = frac
         for pid, hero in ws.heroes.items():
             a = ally.get(pid)
             if a:

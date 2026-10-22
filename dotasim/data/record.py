@@ -105,8 +105,14 @@ async def record(games: int, instances: int, frames: int, difficulty: int, cap_s
 def load_episode(path: Path) -> list[WorldState]:
     d = np.load(path, allow_pickle=True)
     steps: list[WorldState] = []
+    hp_cache: dict[int, float] = {0: 1.0, 5: 1.0}   # unseen heroes are assumed at full hp (same as DotaEnv)
     for raw, stats in zip(d["raw"], d["ally_stats"]):
         ws = parse(zlib.decompress(raw))
+        ws.stats = {pid: dict(zip(STAT_KEYS, (int(v) for v in stats[pid]))) for pid in range(10) if stats[pid, 0] >= 0}
+        for pid, hero in ws.heroes.items():   # same last-known hp carry as DotaEnv
+            hp_cache[pid] = hero.hp / hero.hp_max if (hero.alive and hero.hp_max) else 0.0
+        for pid, frac in hp_cache.items():
+            ws.stats.setdefault(pid, {})["hp_frac"] = frac
         for pid, hero in ws.heroes.items():
             if 0 <= pid < 10 and stats[pid, 0] >= 0:
                 hero.last_hits, hero.denies, hero.gold, hero.net_worth = (int(v) for v in stats[pid, :4])
