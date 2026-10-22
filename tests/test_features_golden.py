@@ -30,9 +30,9 @@ def test_labels_on_recorded_episode():
 
     steps = load_episode(sorted(DATA.glob("ep*_t2.npz"))[0])
     n = {"attack_named": 0, "attack": 0, "move_disp": 0, "move": 0, "cast": 0, "none": 0}
-    for ws, nxt in zip(steps[:-1], steps[1:]):
+    for i, (ws, nxt) in enumerate(zip(steps[:-1], steps[1:])):
         f = featurize(ws, 2)
-        y = label(ws, nxt, f, 2)
+        y = label(ws, nxt, f, 2, steps[min(i + 6, len(steps) - 1)])
         me, me_next = ws.hero_of(2), nxt.hero_of(2)
         if y.action_type == ATTACK:
             n["attack"] += 1
@@ -44,7 +44,7 @@ def test_labels_on_recorded_episode():
         elif y.action_type == MOVE:
             n["move"] += 1
             assert 0 <= y.move_dir < 16 and 0 <= y.move_dist < 4
-            n["move_disp"] += ((me_next.x - me.x) ** 2 + (me_next.y - me.y) ** 2) ** 0.5 > 50
+            n["move_disp"] += ((me_next.x - me.x) ** 2 + (me_next.y - me.y) ** 2) ** 0.5 > 20
         elif y.action_type >= CAST_BASE:
             n["cast"] += 1
         else:

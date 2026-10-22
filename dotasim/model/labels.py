@@ -15,7 +15,8 @@ ORDER_ATTACK_TARGET = 4
 N_DIRS = 16
 DIST_EDGES = (150.0, 300.0, 600.0)    # bins: <150, <300, <600, else
 DIST_VALUES = (150.0, 300.0, 600.0, 1200.0)  # distance each bin executes at
-MOVE_MIN = 100.0                       # displacement below this is "none"
+MOVE_MIN = 25.0                        # one-step displacement below this (about 150 u/s at 5 frames) is "none"
+LOOKAHEAD = 6                          # steps (about 1 s at 5 frames) used for the distance bin
 
 
 @dataclass
@@ -34,7 +35,8 @@ def distance_bin(d: float) -> int:
     return int(np.searchsorted(DIST_EDGES, d, side="right"))
 
 
-def label(ws: WorldState, next_ws: WorldState, feats: Features, team: int) -> Labels:
+def label(ws: WorldState, next_ws: WorldState, feats: Features, team: int, far_ws: WorldState | None = None) -> Labels:
+    """far_ws is the state LOOKAHEAD steps ahead (distance bin); direction comes from the next step."""
     me = ws.hero_of(team)
     if me is None or not me.alive:
         return Labels(NONE)
@@ -43,13 +45,14 @@ def label(ws: WorldState, next_ws: WorldState, feats: Features, team: int) -> La
         return Labels(CAST_BASE + actives.index(me.active_ability_id))
     if me.action_type == ORDER_ATTACK_TARGET and me.attack_target_handle:
         hits = np.nonzero(feats.unit_mask & (feats.unit_handles == me.attack_target_handle))[0]
-        if len(hits):
+        if len(hits) and feats.units[hits[0], 14] > 0:   # target present among the K tokens and alive
             return Labels(ATTACK, target_idx=int(hits[0]))
-        return Labels(NONE)   # target outside the K nearest tokens
+        return Labels(NONE)   # target outside the K nearest tokens, or already dead (e.g. a finished deny)
     nxt = next_ws.hero_of(team)
     if nxt is not None:
         dx, dy = nxt.x - me.x, nxt.y - me.y
-        d = math.hypot(dx, dy)
-        if d >= MOVE_MIN:
+        if math.hypot(dx, dy) >= MOVE_MIN:
+            far = far_ws.hero_of(team) if far_ws is not None else None
+            d = math.hypot(far.x - me.x, far.y - me.y) if far is not None else math.hypot(dx, dy) * LOOKAHEAD
             return Labels(MOVE, move_dir=direction_bin(dx, dy), move_dist=distance_bin(d))
     return Labels(NONE)
