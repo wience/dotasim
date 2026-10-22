@@ -113,6 +113,38 @@ def test_valve_heroes_carry_observer_stats():
     asyncio.run(asyncio.wait_for(run(), 400))
 
 
+def test_controlled_bot_levels_and_buys():
+    """The scripted macro levels abilities and buys starting items for the controlled bot."""
+    env = _env()
+
+    def lane_farm(ws):  # walk to our side of the river, then hit the nearest enemy creep
+        hero = ws.hero_of(2)
+        if math.hypot(hero.x + 700, hero.y + 650) > 400:
+            return Action("move", -700, -650)
+        creeps = [u for u in ws.units if u.kind == "creep" and u.team == 3 and u.alive]
+        if not creeps:
+            return Action()
+        c = min(creeps, key=lambda u: math.hypot(u.x - hero.x, u.y - hero.y))
+        return Action("attack", c.x, c.y, c.name)
+
+    async def run():
+        obs = await env.reset(Matchup(heroes={0: SF, 5: SF}, roles={0: "controlled", 5: "valve"}, difficulty=0, cap_s=200))
+        try:
+            done = False
+            while not done and obs[2].dota_time < 150:
+                obs, done, info = await env.step({2: lane_farm(obs[2])})
+            me = obs[2].hero_of(2)
+            assert me.level >= 2, me.level
+            levels = {aid: lvl for aid, lvl, _, _ in me.abilities}
+            assert max(levels.get(a, 0) for a in (5059, 5060, 5061)) >= 1, levels
+            assert len(me.item_ids) >= 1, me.item_ids
+            assert info["lua_timeouts"] == 0
+        finally:
+            await env.close()
+
+    asyncio.run(asyncio.wait_for(run(), 400))
+
+
 def test_process_death_is_done():
     env = _env()
 

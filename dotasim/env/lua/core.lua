@@ -68,9 +68,13 @@ local function act(st, a)
     end
 end
 
+local macro = require("bots/macro")
+
 local function step(st)
     local bot = st.bot
     local now = DotaTime()
+    st.ticks = (st.ticks or 0) + 1
+    if st.ticks % 30 == 0 then macro.tick(bot) end
     if st.calib == nil then
         local c = M.load_table("calib_" .. st.token)
         if c and c.t then st.calib = c.t; st.n = c.n or st.n end
