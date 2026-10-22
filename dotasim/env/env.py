@@ -57,6 +57,7 @@ class DotaEnv:
         self._hist: deque[tuple[float, float]] = deque(maxlen=30)
         self._steps = 0
         self._hp_cache: dict[int, float] = {}
+        self._pending: dict[int, asyncio.Task] = {}   # team -> in-flight read of its next worldstate
 
     # ---- lifecycle -------------------------------------------------------
     async def reset(self, matchup: Matchup) -> dict[int, WorldState]:
@@ -66,6 +67,7 @@ class DotaEnv:
         self._steps = 0
         self._hist.clear()
         self._hp_cache = {pid: 1.0 for pid in matchup.heroes}   # unseen heroes are assumed at full hp
+        self._pending = {}
         self.last_error = None
         self.cfg.frames, self.cfg.difficulty = matchup.frames, matchup.difficulty
         self.channel.write_config(matchup.frames, matchup.heroes, matchup.roles)
@@ -111,25 +113,54 @@ class DotaEnv:
         """Raw protobuf bytes of the latest worldstate for a watched team (for recording)."""
         return self._teams[team].last_raw
 
+    def _arm(self, tm: _Team) -> None:
+        if tm.team not in self._pending:
+            self._pending[tm.team] = asyncio.create_task(tm.stream.__anext__())
+
+    async def _await_any(self) -> dict[int, bytes]:
+        """Wait for the next worldstate from whichever watched stream delivers first (several if simultaneous).
+
+        With two controlled teams the server emits team 3's state only after team 2's Lua has its action, so
+        waiting for both at once deadlocks; decisions therefore alternate per team.
+        """
+        by_task = {self._pending[t]: t for t in self._pending}
+        done, _ = await asyncio.wait(by_task.keys(), timeout=STEP_TIMEOUT_S, return_when=asyncio.FIRST_COMPLETED)
+        if not done:
+            raise StreamTimeout(f"instance {self.cfg.index}: no worldstate in {STEP_TIMEOUT_S}s (alive={self.instance.alive()})")
+        out = {}
+        for task in done:
+            team = by_task[task]
+            del self._pending[team]
+            try:
+                out[team] = task.result()
+            except StopAsyncIteration:
+                raise InstanceError(f"instance {self.cfg.index}: worldstate stream for team {team} closed")
+        return out
+
     async def step(self, actions: dict[int, Action]) -> tuple[dict[int, WorldState], bool, dict]:
+        """Write the given teams' actions, then return the next worldstate(s) to arrive.
+
+        actions: {team: Action} for teams whose latest worldstate was returned by the previous call.
+        With both teams controlled, calls alternate: {2: a} -> {3: ws}, {3: a} -> {2: ws}, ...
+        """
         watch = [tm for tm in self._teams.values() if tm.stream is not None]
         for tm in watch:
-            if tm.controlled:
-                self.channel.write_action(tm.token, tm.ws_idx, actions.get(tm.team, Action()))
+            if tm.controlled and tm.team in actions:
+                self.channel.write_action(tm.token, tm.ws_idx, actions[tm.team])
+            self._arm(tm)
         obs: dict[int, WorldState] = {}
         done, error = False, None
-        results = await asyncio.gather(*(self._next_raw(tm) for tm in watch), return_exceptions=True)
-        failure = next((r for r in results if isinstance(r, BaseException)), None)
-        if failure is not None:
-            done, raws = True, []
+        try:
+            raws_by_team = await self._await_any()
+        except InstanceError as failure:
+            done, raws_by_team = True, {}
             # On a read timeout the log already had STEP_TIMEOUT_S to catch up; on EOF give it a moment.
             if await self._post_game_reached(wait_s=0.0 if isinstance(failure, StreamTimeout) else 3.0):
                 self.phase = "postgame"  # the server stops streaming at POST_GAME and later closes: a clean finish
             else:
                 error = str(failure)
-        else:
-            raws = results
-        for tm, raw in zip(watch, raws):
+        for team, raw in raws_by_team.items():
+            tm = self._teams[team]
             ws = parse(raw)
             # same formula as Lua: index = ticks since calibration / frames, so a dropped message cannot desync us
             tm.ws_idx = round((ws.dota_time - tm.calib_t) * TICKS_PER_S / self.matchup.frames)
@@ -138,8 +169,8 @@ class DotaEnv:
             if tm.returned:
                 obs[tm.team] = ws
         self._steps += 1
-        if raws:
-            ws0 = watch[0].last
+        if raws_by_team:
+            ws0 = self._teams[next(iter(raws_by_team))].last
             self._hist.append((time.monotonic(), ws0.dota_time))
             if ws0.game_state == POST_GAME or ws0.dota_time >= self.matchup.cap_s:
                 done = True
@@ -188,6 +219,9 @@ class DotaEnv:
             hero.last_hits, hero.denies, hero.gold = o["last_hits"], o["denies"], o["gold"]
 
     async def close(self) -> None:
+        for task in self._pending.values():
+            task.cancel()
+        self._pending.clear()
         try:
             for tm in self._teams.values():
                 if tm.stream is not None:

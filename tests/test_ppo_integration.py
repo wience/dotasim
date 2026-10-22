@@ -95,7 +95,7 @@ def test_full_size_update_budget():
         buf.add(0, 2, Step(rng.standard_normal((K, UD), dtype=np.float32), np.ones(K, bool), rng.standard_normal(HD, dtype=np.float32),
                            np.ones(7, bool), {"type": 1, "dir": 3, "dist": 1, "target": 0}, -1.5, 0.0, np.zeros(256, np.float32), 1, 0.0))
     buf.finish(0, 2, 0.0, False, 0.0)
-    cfg = PPOConfig(gamma=GAMMA, lam=0.95, epochs=3, minibatch=64)
+    cfg = PPOConfig(gamma=GAMMA, lam=0.95, epochs=2, minibatch=64)
     wins = buf.windows(cfg.gamma, cfg.lam)
     t = time.perf_counter()
     stats = ppo_update(net, anchor, wins, cfg, torch.optim.Adam(net.parameters(), lr=cfg.lr))

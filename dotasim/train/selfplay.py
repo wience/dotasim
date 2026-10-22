@@ -150,7 +150,7 @@ def main(argv=None):
     p.add_argument("--cap", type=float, default=600)
     p.add_argument("--eval-every", type=int, default=10)
     p.add_argument("--eval-games", type=int, default=6)
-    p.add_argument("--epochs", type=int, default=3)
+    p.add_argument("--epochs", type=int, default=2)
     p.add_argument("--lr", type=float, default=1e-4)
     a = p.parse_args(argv)
     cfg = SelfPlayConfig(init=Path(a.init), out=Path(a.out), instances=a.instances, iterations=a.iterations, cap_s=a.cap,

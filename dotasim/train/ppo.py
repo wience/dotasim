@@ -16,7 +16,7 @@ from dotasim.train.buffer import Buffer, Window
 class PPOConfig:
     lr: float = 1e-4
     clip: float = 0.2
-    epochs: int = 3
+    epochs: int = 2   # 3 epochs took 231 s for a full iteration (budget 180 s); see plan Task 3
     minibatch: int = 64
     vf_coef: float = 0.5
     ent_coef: float = 0.003
