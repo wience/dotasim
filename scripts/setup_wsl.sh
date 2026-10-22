@@ -11,4 +11,6 @@ uv --version
 uv python install 3.12 >/dev/null
 [ -x "$HOME/dotasim-venv/bin/python" ] || uv venv -q "$HOME/dotasim-venv" -p 3.12
 uv pip install -q -p "$HOME/dotasim-venv/bin/python" -e "$REPO[dev]"
-"$HOME/dotasim-venv/bin/python" -c "import google.protobuf, psutil, grpc_tools, pytest; print('venv ok', google.protobuf.__version__)"
+# PyTorch CPU build (ROCm is an optional later step; see docs/superpowers/specs/)
+uv pip install -q -p "$HOME/dotasim-venv/bin/python" torch --index-url https://download.pytorch.org/whl/cpu
+"$HOME/dotasim-venv/bin/python" -c "import google.protobuf, psutil, grpc_tools, pytest, torch; print('venv ok', google.protobuf.__version__, 'torch', torch.__version__)"

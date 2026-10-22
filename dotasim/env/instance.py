@@ -33,6 +33,7 @@ class InstanceConfig:
     frames: int = 10
     difficulty: int = 4
     run_dir: Path = Path("runs/current")
+    extra_args: list[str] = field(default_factory=list)  # appended verbatim to the launch line
 
     @property
     def game_dir(self) -> Path:
@@ -75,6 +76,7 @@ class InstanceConfig:
             "+dota_auto_surrender_all_disconnected_timeout", "180",
             # SourceTV: lets a real client spectate (connect <ip>:<tv_port>) and records replays
             "+tv_enable", "1", "+tv_port", str(self.tv_port), "+tv_delay", "0", "+tv_autorecord", "1",
+            *self.extra_args,
         ]
 
 
