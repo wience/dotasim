@@ -65,6 +65,15 @@ local function act(st, a)
         else
             st.mismatch = st.mismatch + 1
         end
+    elseif a.kind == "cast" then
+        -- no-target cast by ability name (razes, requiem); point/unit casts come with later heroes
+        local ab = bot:GetAbilityByName(a.name or "")
+        if ab ~= nil and ab:IsFullyCastable() then
+            bot:Action_UseAbility(ab)
+            st.exec = st.exec + 1
+        else
+            st.mismatch = st.mismatch + 1
+        end
     end
 end
 

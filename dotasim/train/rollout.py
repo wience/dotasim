@@ -32,6 +32,9 @@ class Fleet:
         self.run_dir.mkdir(parents=True, exist_ok=True)
         bots = install_scripts(dota)
         self.matchup, self.policy, self.stagger_s = matchup, policy, stagger_s
+        pf = getattr(policy, "frames", None)
+        if pf is not None and pf != matchup.frames:
+            raise ValueError(f"policy was trained at frames={pf} but the matchup uses frames={matchup.frames}")
         self.envs = [DotaEnv(InstanceConfig(index=i, dota_dir=dota, timescale=timescale, frames=matchup.frames,
                                             difficulty=matchup.difficulty, run_dir=self.run_dir), bots) for i in range(n)]
         self.infer_ms: list[float] = []
