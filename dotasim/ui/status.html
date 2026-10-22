@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>dotasim fleet</title>
+<style>
+  :root { color-scheme: dark; }
+  body { margin: 0; padding: 16px; background: #111; color: #ddd; font: 14px/1.4 system-ui, -apple-system, Segoe UI, sans-serif; }
+  h1 { font-size: 18px; margin: 0 0 4px; font-weight: 600; }
+  #totals { color: #9a9; margin-bottom: 12px; }
+  table { border-collapse: collapse; width: 100%; max-width: 1200px; }
+  th, td { text-align: left; padding: 4px 8px; border-bottom: 1px solid #2a2a2a; white-space: nowrap; }
+  th { color: #888; font-weight: 500; }
+  tr.bad { border-left: 4px solid #e55; }
+  td.err { color: #e88; white-space: normal; max-width: 420px; }
+  #map { display: block; margin-top: 16px; background: #0a0f0a; border: 1px solid #2a2a2a; }
+  #mapinfo { color: #888; margin-top: 4px; }
+</style>
+</head>
+<body>
+<h1>dotasim fleet <span id="run" style="color:#888;font-weight:400"></span></h1>
+<div id="totals">waiting for status.json…</div>
+<table>
+  <thead><tr>
+    <th>#</th><th>phase</th><th>game time</th><th>speed</th><th>heroes</th><th>kills</th><th>last hits</th>
+    <th>episode</th><th>Lua timeouts</th><th>cpu%</th><th>rss MB</th><th>last error</th>
+  </tr></thead>
+  <tbody id="rows"></tbody>
+</table>
+<canvas id="map" width="480" height="480"></canvas>
+<div id="mapinfo">instance 0 minimap: green radiant, red dire; dots creeps, circles heroes (arc = hp), squares towers</div>
+<script>
+const $ = (id) => document.getElementById(id);
+const mmss = (t) => { const s = Math.max(0, Math.round(t)); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`; };
+
+async function pollStatus() {
+  try {
+    const r = await fetch("status.json", { cache: "no-store" });
+    const d = await r.json();
+    $("run").textContent = d.run + " · " + d.updated;
+    const t = d.totals;
+    $("totals").textContent = `episodes ${t.episodes} · steps ${t.steps} · games/h ${t.games_per_hour} · infer ms ${t.infer_ms_mean} · Lua timeouts ${t.lua_timeouts} · errors ${t.errors}`;
+    $("rows").innerHTML = d.instances.map((i) => `
+      <tr class="${i.phase === "dead" || i.lua_timeouts > 0 ? "bad" : ""}">
+        <td>${i.index}</td><td>${i.phase}</td><td>${mmss(i.game_time)}</td><td>${i.speed_x}x</td>
+        <td>${(i.heroes[2] || "") + " vs " + (i.heroes[3] || "")}</td>
+        <td>${(i.kills[2] ?? 0) + " – " + (i.kills[3] ?? 0)}</td>
+        <td>${(i.last_hits[2] ?? -1) + " / " + (i.last_hits[3] ?? -1)}</td>
+        <td>${i.episode}</td><td>${i.lua_timeouts}</td><td>${Math.round(i.cpu)}</td><td>${i.rss_mb}</td>
+        <td class="err">${i.last_error || ""}</td>
+      </tr>`).join("");
+  } catch (e) { $("totals").textContent = "status.json not readable yet: " + e; }
+}
+
+const canvas = $("map"), ctx = canvas.getContext("2d");
+const LIM = 8000, S = canvas.width / (2 * LIM);
+const px = (x) => (x + LIM) * S, py = (y) => (LIM - y) * S;
+async function pollMap() {
+  try {
+    const r = await fetch("ws_0.json", { cache: "no-store" });
+    const w = await r.json();
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.strokeStyle = "#233"; ctx.beginPath(); ctx.moveTo(0, canvas.height); ctx.lineTo(canvas.width, 0); ctx.stroke();
+    for (const [x, y, team, kind, hp] of w.units) {
+      const col = team === 2 ? "#5c5" : team === 3 ? "#e55" : "#777";
+      ctx.fillStyle = col; ctx.strokeStyle = col;
+      if (kind === "hero") {
+        ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(px(x), py(y), 7, 0, 2 * Math.PI); ctx.stroke();
+        ctx.beginPath(); ctx.arc(px(x), py(y), 7, -Math.PI / 2, -Math.PI / 2 + 2 * Math.PI * hp); ctx.lineWidth = 3; ctx.stroke();
+      } else if (kind === "tower") {
+        ctx.fillRect(px(x) - 4, py(y) - 4, 8, 8);
+      } else if (kind === "creep") {
+        ctx.beginPath(); ctx.arc(px(x), py(y), 2.5, 0, 2 * Math.PI); ctx.fill();
+      }
+    }
+    const heroes = Object.values(w.heroes || {}).filter((h) => h.last_hits >= 0 || h.kills > 0);
+    $("mapinfo").textContent = `instance 0 · t=${mmss(w.t)} · ` + heroes.map((h) => `${h.name.replace("npc_dota_hero_", "")} (${h.team === 2 ? "R" : "D"}) hp ${h.hp}/${h.hp_max} lh ${h.last_hits} k ${h.kills}`).join(" · ");
+  } catch (e) { /* no frame yet */ }
+}
+pollStatus(); pollMap();
+setInterval(pollStatus, 1000);
+setInterval(pollMap, 300);
+</script>
+</body>
+</html>
