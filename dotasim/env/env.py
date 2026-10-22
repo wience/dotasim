@@ -100,8 +100,11 @@ class DotaEnv:
         try:
             raws = await asyncio.gather(*(self._next_raw(tm) for tm in watch))
         except InstanceError as e:
-            error, done = str(e), True
-            raws = []
+            done, raws = True, []
+            if await self._post_game_reached():
+                self.phase = "postgame"  # the server stops streaming at POST_GAME and later closes: a clean finish
+            else:
+                error = str(e)
         for tm, raw in zip(watch, raws):
             ws = parse(raw)
             tm.ws_idx += 1
@@ -119,7 +122,19 @@ class DotaEnv:
             self.phase, self.last_error = "dead", error
         elif done:
             self.phase = "postgame"
-        return obs, done, self._info(error)
+        info = self._info(error)
+        if done and self.phase == "postgame":
+            info["post_game"] = True
+        return obs, done, info
+
+    async def _post_game_reached(self, wait_s: float = 3.0) -> bool:
+        """The console log can trail the socket by a moment; give the POST_GAME line a few seconds to land."""
+        for _ in range(int(wait_s / 0.2)):
+            self.instance.console_tail()
+            if self.instance.post_game_seen:
+                return True
+            await asyncio.sleep(0.2)
+        return self.instance.post_game_seen
 
     def _merge_lua_obs(self, tm: _Team, ws: WorldState) -> None:
         if not tm.controlled:
@@ -135,7 +150,7 @@ class DotaEnv:
                 await tm.stream.aclose()
                 tm.stream = None
         await self.instance.kill()
-        if self.phase not in ("idle", "dead"):
+        if self.phase not in ("idle", "dead", "postgame"):
             self.phase = "idle"
 
     # ---- reporting -------------------------------------------------------
@@ -160,6 +175,10 @@ class DotaEnv:
         if error:
             info["error"] = error
         return info
+
+    @property
+    def last_ws(self) -> WorldState | None:
+        return next((tm.last for tm in self._teams.values() if tm.last is not None), None)
 
     @property
     def status(self) -> dict:

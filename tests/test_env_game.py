@@ -62,6 +62,27 @@ def test_random_policy_episode():
     asyncio.run(asyncio.wait_for(run(), 400))
 
 
+def test_valve_game_ends_clean():
+    """A Valve-vs-Valve game ends with POST_GAME and a closed stream: that is a clean finish, not an error."""
+    env = _env()
+
+    async def run():
+        await env.reset(Matchup(heroes={0: SF, 5: SF}, roles={0: "valve", 5: "valve"}, cap_s=3000))
+        try:
+            for _ in range(20000):
+                obs, done, info = await env.step({})
+                if done:
+                    break
+            assert done, info
+            assert "error" not in info, info
+            assert env.phase == "postgame"
+            assert info["game_time"] < 3000
+        finally:
+            await env.close()
+
+    asyncio.run(asyncio.wait_for(run(), 900))
+
+
 def test_process_death_is_done():
     env = _env()
 

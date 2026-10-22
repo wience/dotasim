@@ -100,6 +100,7 @@ class Instance:
         self._tail: deque[str] = deque(maxlen=200)
         self.lua = _LuaState()
         self._out = None
+        self.post_game_seen = False
 
     # ---- lifecycle -------------------------------------------------------
     async def launch(self) -> None:
@@ -110,6 +111,7 @@ class Instance:
         self.cfg.console_log.write_text("")
         self._log_pos = 0
         self.lua = _LuaState()
+        self.post_game_seen = False
         self.cfg.run_dir.mkdir(parents=True, exist_ok=True)
         self._out = open(self.cfg.run_dir / f"instance_{self.cfg.index}.out", "ab")
         env = dict(os.environ, LD_LIBRARY_PATH=str(self.cfg.game_dir / "bin" / "linuxsteamrt64"), ENABLE_PATHMATCH="1")
@@ -164,6 +166,8 @@ class Instance:
             return
         for line in chunk.decode(errors="replace").splitlines():
             self._tail.append(line)
+            if "DOTA_GAMERULES_STATE_POST_GAME" in line:
+                self.post_game_seen = True
             if m := LUARDY.search(line):
                 token, team, pid, role = m.group(1), int(m.group(2)), int(m.group(3)), m.group(4)
                 self.lua.roles[token] = role
