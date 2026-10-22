@@ -1,0 +1,29 @@
+[project]
+name = "dotasim"
+version = "0.1.0"
+description = "Self-play RL for Dota 2 1v1 on one desktop"
+requires-python = ">=3.12"
+dependencies = [
+    "protobuf>=5",
+    "psutil>=6",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8",
+    "grpcio-tools>=1.60",
+]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["dotasim*"]
+
+[tool.pytest.ini_options]
+markers = [
+    "game: needs a Dota 2 install (DOTASIM_DOTA_DIR, default ~/dota2)",
+    "slow: takes more than a few minutes",
+]
+testpaths = ["tests"]
