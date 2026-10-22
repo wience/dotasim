@@ -127,7 +127,7 @@ async def train_selfplay(cfg: SelfPlayConfig) -> dict:
             last_eval = {}
             for name, diff in (("unfair", 4), ("passive", 0)):
                 res = await evaluate(cfg.out / "policy.pt", cfg.eval_games, min(cfg.eval_games, cfg.instances), diff,
-                                     min(cfg.cap_s, 600), cfg.out / f"eval_it{it + 1:04d}_{name}", dota_dir=cfg.dota_dir, greedy=True)
+                                     min(cfg.cap_s, 600), cfg.out / f"eval_it{it + 1:04d}_{name}", dota_dir=cfg.dota_dir, greedy=False)
                 last_eval[f"win_rate_{name}"] = res["median"].get("win_rate", 0.0)
                 last_eval[f"last_hits_{name}"] = res["median"]["last_hits"]
                 writer.add_scalar(f"eval/win_rate_{name}", last_eval[f"win_rate_{name}"], it + 1)

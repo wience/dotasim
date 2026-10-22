@@ -19,7 +19,7 @@ KEYS = ("last_hits", "denies", "kills", "deaths", "level", "valve_last_hits", "l
 
 
 async def evaluate(checkpoint: Path | None, games: int, instances: int, difficulty: int, cap_s: float, out: Path,
-                   dota_dir: Path | None = None, frames: int = 5, timescale: float = 10, greedy: bool = True) -> dict:
+                   dota_dir: Path | None = None, frames: int = 5, timescale: float = 10, greedy: bool = False) -> dict:
     out = Path(out)
     out.mkdir(parents=True, exist_ok=True)
     policy = NetPolicy(checkpoint, greedy=greedy) if checkpoint else RandomPolicy(seed=0)
@@ -74,11 +74,11 @@ def main(argv=None):
     p.add_argument("--difficulty", type=int, default=0)
     p.add_argument("--cap", type=float, default=300)
     p.add_argument("--frames", type=int, default=5)
-    p.add_argument("--sample", action="store_true", help="sample actions instead of greedy")
+    p.add_argument("--greedy", action="store_true", help="argmax actions instead of sampling (sampling is the default)")
     p.add_argument("--out", default="runs/eval")
     a = p.parse_args(argv)
     res = asyncio.run(evaluate(Path(a.checkpoint) if a.checkpoint else None, a.games, a.instances, a.difficulty, a.cap,
-                               Path(a.out), frames=a.frames, greedy=not a.sample))
+                               Path(a.out), frames=a.frames, greedy=a.greedy))
     print(json.dumps({"median": res["median"], "games": res["games"]}, indent=1))
 
 

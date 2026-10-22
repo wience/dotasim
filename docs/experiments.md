@@ -62,3 +62,31 @@ Valve unfair vs Valve unfair, Shadow Fiend mirror, mode 21, 5 frames per worldst
 Lesson: recording on 12 instances at 5 frames with both teams watched dropped most streams. The game closes a worldstate socket the moment its reader stalls, and the episode-end save (recompressing 40 MB on the event loop) stalled every other instance for seconds. Per-frame zlib in a thread pool and plain `np.savez` in a worker fixed it.
 
 Label mix over the first four episodes (Valve SF): none 34%, move 58%, attack 8%, casts under 1%. The Valve bot's current order is `MOVE_TO_TARGET` more often than `MOVE_TO_POSITION`; both label as moves from displacement.
+
+## 2026-10-23 Phase 2 cloning: bc_v1
+
+Trained on sf_mirror_v1 (46 episode files, 179,754 labeled steps), 12 epochs, batch 32 windows of 32 steps, lr 3e-4, 8 CPU threads: 100.7 min.
+
+| metric | value |
+|---|---|
+| type loss | 1.80 -> 0.59 |
+| type accuracy (teacher-forced, whole set) | 81.0% (majority class "move" 57.1%) |
+| attack-target accuracy | 95.2% |
+| label mix | none 33%, move 57%, attack 9%, razes 0.4%, requiem 0 |
+
+Live evaluation, SF vs Valve passive, 5 game-minutes, 3 games, 3 instances (`runs/eval_bc_v1_passive`, `runs/eval_random`):
+
+| policy | median last hits | median level | deaths | Valve bot's own last hits |
+|---|---|---|---|---|
+| random (move/attack nearest creep) | 0 | 1 | 0 | 20 |
+| bc_v1 greedy | 0 | 1 | 0 | 20 |
+| bc_v1 sampled | 0 | 2 | 1 | 8 |
+
+Verdict: **phase 2 exit (median >= 5 last hits) not met.** Offline the clone reproduces the recorded action mix per
+time bucket almost exactly, so the model learned the marginals; live it fails two ways. Greedy decoding repeats one
+move direction every step and the hero walks into the base cliff at (-5280, -864) and never moves again. Sampled
+decoding does reach the lane sometimes (46 attack orders and a last hit in a diagnostic game) but random-walks across
+the map, because single-step displacement direction labels are noisy at 0.167 s. Two fixes are queued: direction and
+distance labels from the 1-second lookahead (smoother intent), and action repeat for moves. Both need a re-record of
+the feature cache and a retrain (about 2 hours), so they are deferred behind the self-play run, which optimizes laning
+directly through shaping and uses bc_v1 only as a prior and KL anchor. Evaluation now samples by default.
