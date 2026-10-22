@@ -90,3 +90,20 @@ the map, because single-step displacement direction labels are noisy at 0.167 s.
 distance labels from the 1-second lookahead (smoother intent), and action repeat for moves. Both need a re-record of
 the feature cache and a retrain (about 2 hours), so they are deferred behind the self-play run, which optimizes laning
 directly through shaping and uses bc_v1 only as a prior and KL anchor. Evaluation now samples by default.
+
+## 2026-10-23 Phase 3 self-play: first attempt stopped, loop fixed, restarted
+
+`runs/sp_v0_buggy` (3 iterations, 12 servers, 300 s episodes): about 30k steps per iteration where two trajectories per
+episode should give about 43k, and 2 to 6 outcomes recorded out of 12 games. A fresh-context review found why: after
+`DotaEnv.step` became alternating per team, the collector only closed the trajectory of the team that happened to be
+in the step's obs, credited each shaped reward one step late, and read the winner from a stale worldstate, so finished
+games fell into the cap-bootstrap path. Fixed by holding each live team's decision as pending until that team's next
+worldstate arrives, closing both teams at episode end against the newest state, bootstrapping capped episodes from
+V(s_T+1), and making the post-game flag mean what it says. A new game test pins it: one self-play episode yields two
+trajectories of equal length whose stored rewards equal `step_reward` over that team's consecutive worldstates.
+
+Throughput with 12 servers and batched inference on this 8-core machine: about 3x real time per server (CPU bound by
+the servers themselves; feature extraction costs 0.16 ms), 18 ms per batched decision, an iteration of twelve 5-minute
+games in 60 to 80 s of rollout plus about 75 s of PPO update (2 epochs, minibatch 64).
+
+`runs/sp_v1` restarted from `bc_v1` with the fixed loop: 80 iterations, eval every 10 (6 games vs unfair, 6 vs passive).
