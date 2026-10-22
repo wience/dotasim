@@ -107,3 +107,10 @@ the servers themselves; feature extraction costs 0.16 ms), 18 ms per batched dec
 games in 60 to 80 s of rollout plus about 75 s of PPO update (2 epochs, minibatch 64).
 
 `runs/sp_v1` restarted from `bc_v1` with the fixed loop: 80 iterations, eval every 10 (6 games vs unfair, 6 vs passive).
+
+Two more restarts before the run was sound. First: the killed run's servers were still shutting down when the next
+run launched, so the first wave collided on ports for five iterations (`runs/sp_v1_dirtystart`). Second: with the live
+policy on 8 torch threads next to 12 servers on 16 logical CPUs, a batched decision took 200 to 660 ms instead of 18,
+every Lua wait timed out, the game clock crawled at 0.1x and the server ended games while still in pre-game
+(`runs/sp_v1_threads8`). Rollouts now use 4 threads and the update 8. The clean run (`runs/sp_v1`): iteration 2 =
+42,876 steps, 24 trajectories, 4.0x per server, 16.9 ms per decision, 0.2% Lua timeouts, 0 errors.
