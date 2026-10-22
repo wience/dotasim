@@ -39,6 +39,13 @@ class NetPolicy:
     def reset(self) -> None:
         self.states.clear()
 
+    def for_env(self, index: int) -> "NetPolicy":
+        """A per-instance view sharing the network but with its own GRU states."""
+        other = object.__new__(NetPolicy)
+        other.__dict__.update(self.__dict__)
+        other.states = {}
+        return other
+
     def act(self, obs: dict[int, WorldState]) -> dict[int, Action]:
         import torch
         from dotasim.model.features import featurize

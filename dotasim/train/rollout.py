@@ -68,9 +68,12 @@ class Fleet:
     # ---- driving ---------------------------------------------------------
     async def _run_env(self, i: int, episodes: int, max_steps: int | None) -> None:
         env = self.envs[i]
+        policy = self.policy.for_env(i) if hasattr(self.policy, "for_env") else self.policy
         await asyncio.sleep(i * self.stagger_s)
         try:
             for _ in range(episodes):
+                if hasattr(policy, "reset"):
+                    policy.reset()
                 try:
                     obs = await env.reset(self.matchup)
                 except InstanceError as e:
@@ -81,7 +84,7 @@ class Fleet:
                 try:
                     while True:
                         t0 = time.perf_counter()
-                        actions = self.policy.act(obs) if obs else {}
+                        actions = policy.act(obs) if obs else {}
                         self.infer_ms.append((time.perf_counter() - t0) * 1000)
                         obs, done, info = await env.step(actions)
                         steps += 1
