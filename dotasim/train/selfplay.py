@@ -196,6 +196,7 @@ async def train_selfplay(cfg: SelfPlayConfig) -> dict:
             last_eval = {}
             for name, diff in (("unfair", 4), ("passive", 0)):
                 try:
+                    await wait_servers_exit()   # eval servers must not launch into the exiting rollout servers' logs
                     res = await evaluate(cfg.out / "policy.pt", cfg.eval_games, min(cfg.eval_games, cfg.instances), diff,
                                          min(cfg.cap_s, 600), cfg.out / f"eval_it{it + 1:04d}_{name}", dota_dir=cfg.dota_dir, greedy=False)
                 except Exception as e:  # noqa: BLE001
