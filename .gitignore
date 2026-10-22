@@ -5,4 +5,4 @@ __pycache__/
 spike/*.txt
 .superpowers/
 *.egg-info/
-data/
+/data/

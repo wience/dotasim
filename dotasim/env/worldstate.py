@@ -35,6 +35,11 @@ class Hero(Unit):
     player_id: int = -1
     kills: int = 0
     deaths: int = 0
+    attack_target_handle: int = 0
+    is_using_ability: bool = False
+    active_ability_id: int = -1
+    abilities: tuple = ()      # (ability_id, level, cooldown_remaining, is_fully_castable) per ability
+    item_ids: tuple = ()
     # Not in the proto: filled by the env from the Lua LUAOBS (controlled) or LUAALLY (observer) lines; -1 until then.
     last_hits: int = -1
     denies: int = -1
@@ -83,7 +88,12 @@ def parse(buf: bytes) -> WorldState:
     for u in msg.units:
         if u.unit_type == pb.CMsgBotWorldState.UnitType.Value("HERO") and u.player_id >= 0:
             p = players.get(u.player_id)
-            hero = _unit(u, Hero, player_id=u.player_id, kills=p.kills if p else 0, deaths=p.deaths if p else 0)
+            by_handle = {a.handle: a.ability_id for a in u.abilities}
+            hero = _unit(u, Hero, player_id=u.player_id, kills=p.kills if p else 0, deaths=p.deaths if p else 0,
+                         attack_target_handle=u.attack_target_handle, is_using_ability=u.is_using_ability,
+                         active_ability_id=by_handle.get(u.active_ability_handle, -1),
+                         abilities=tuple((a.ability_id, a.level, a.cooldown_remaining, a.is_fully_castable) for a in u.abilities),
+                         item_ids=tuple(a.ability_id for a in u.items))
             ws.units.append(hero)
             ws.heroes[u.player_id] = hero
         else:
