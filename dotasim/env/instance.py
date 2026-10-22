@@ -17,7 +17,7 @@ import psutil
 
 LUARDY = re.compile(r"LUARDY token=(\w+) team=(\d) pid=(\d+) role=(\w+)")
 LUASTAT = re.compile(r"LUASTAT token=(\w+) waits=(\d+) exec=(\d+) timeouts=(\d+) mismatch=(\d+)")
-LUAOBS = re.compile(r"LUAOBS token=(\w+) idx=(\d+) lh=(-?\d+) dn=(-?\d+) gold=(-?\d+) xp=(-?\d+) lvl=(-?\d+)")
+LUAOBS = re.compile(r"LUAOBS token=(\w+) idx=(\d+) lh=(-?\d+) dn=(-?\d+) gold=(-?\d+) xp=(-?\d+) lvl=(-?\d+) to=(\d+) mm=(\d+)")
 LUAERR = re.compile(r"LUAERR token=(\w+) (.*)")
 
 
@@ -171,7 +171,8 @@ class Instance:
                     self.lua.tokens[team] = token
             elif m := LUAOBS.search(line):
                 self.lua.obs[m.group(1)] = {"idx": int(m.group(2)), "last_hits": int(m.group(3)), "denies": int(m.group(4)),
-                                            "gold": int(m.group(5)), "xp": int(m.group(6)), "level": int(m.group(7))}
+                                            "gold": int(m.group(5)), "xp": int(m.group(6)), "level": int(m.group(7)),
+                                            "timeouts": int(m.group(8)), "mismatch": int(m.group(9))}
             elif m := LUASTAT.search(line):
                 self.lua.stats[m.group(1)] = {"waits": int(m.group(2)), "exec": int(m.group(3)),
                                               "timeouts": int(m.group(4)), "mismatch": int(m.group(5))}

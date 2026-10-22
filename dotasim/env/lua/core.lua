@@ -87,9 +87,9 @@ local function step(st)
         if RealTime() - t0 > WAIT_TIMEOUT_S then st.timeouts = st.timeouts + 1; data = nil; break end
     end
     if data then act(st, data) end
-    print(string.format("LUAOBS token=%s idx=%d lh=%d dn=%d gold=%d xp=%d lvl=%d",
+    print(string.format("LUAOBS token=%s idx=%d lh=%d dn=%d gold=%d xp=%d lvl=%d to=%d mm=%d",
         st.token, want, safe(bot, "GetLastHits"), safe(bot, "GetDenies"), safe(bot, "GetGold"),
-        safe(bot, "GetXP"), safe(bot, "GetLevel")))
+        safe(bot, "GetXP"), safe(bot, "GetLevel"), st.timeouts, st.mismatch))
     if st.waits % 50 == 0 then
         print(string.format("LUASTAT token=%s waits=%d exec=%d timeouts=%d mismatch=%d",
             st.token, st.waits, st.exec, st.timeouts, st.mismatch))
