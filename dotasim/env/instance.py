@@ -91,6 +91,16 @@ def _port_in_use(port: int, kind: int = socket.SOCK_STREAM) -> bool:
             return True
 
 
+def _prune_replays(replays: Path, keep: int) -> None:
+    """SourceTV writes about 8 MB per 10-minute game; keep only the newest `keep` demos."""
+    try:
+        demos = sorted(replays.glob("*.dem"), key=lambda p: p.stat().st_mtime)
+        for p in demos[:-keep] if keep else demos:
+            p.unlink()
+    except OSError:
+        pass
+
+
 @dataclass
 class _LuaState:
     tokens: dict[int, str] = field(default_factory=dict)      # team -> token (controlled|valve)
@@ -122,6 +132,7 @@ class Instance:
                 raise InstanceError(f"port {port} in use (instance {self.cfg.index})")
         self.cfg.console_log.parent.mkdir(parents=True, exist_ok=True)
         self.cfg.console_log.write_text("")
+        _prune_replays(self.cfg.game_dir / "dota" / "replays", keep=30)
         self._log_pos = 0
         self._tail.clear()
         self.lua = _LuaState()

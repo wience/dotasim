@@ -11,6 +11,7 @@ from torch.utils.tensorboard import SummaryWriter
 
 from dotasim.env.env import Matchup
 from dotasim.train.policy import NetPolicy, RandomPolicy
+from dotasim.train.reward import winner
 from dotasim.train.rollout import Fleet
 
 SF = "npc_dota_hero_nevermore"
@@ -38,7 +39,9 @@ async def evaluate(checkpoint: Path | None, games: int, instances: int, difficul
             ws = last_obs.get(i, {}).get(2)
             me = ws.hero_of(2) if ws else None
             foe = env.instance.lua_ally().get(5, {})
+            w = winner(ws) if (ws is not None and info.get("post_game")) else None
             results.append({
+                "won": w == 2, "draw": w is None,
                 "instance": i, "game_time": round(info.get("game_time", 0.0), 1),
                 "last_hits": me.last_hits if me else -1, "denies": me.denies if me else -1,
                 "kills": me.kills if me else 0, "deaths": me.deaths if me else 0, "level": me.level if me else 0,
@@ -51,6 +54,8 @@ async def evaluate(checkpoint: Path | None, games: int, instances: int, difficul
     totals = await fleet.run(episodes_per_instance=-(-games // n))
     results = results[:games]
     median = {k: statistics.median([g[k] for g in results]) if results else -1 for k in KEYS}
+    median["win_rate"] = sum(g["won"] for g in results) / len(results) if results else 0.0
+    median["draw_rate"] = sum(g["draw"] for g in results) / len(results) if results else 0.0
     summary = {"checkpoint": str(checkpoint) if checkpoint else "random", "difficulty": difficulty, "cap_s": cap_s,
                "frames": frames, "games": results, "median": median, "fleet": totals}
     (out / "eval.json").write_text(json.dumps(summary, indent=1))
