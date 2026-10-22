@@ -179,8 +179,11 @@ class DotaEnv:
         elif done:
             self.phase = "postgame"
         info = self._info(error)
-        if done and self.phase == "postgame":
-            info["post_game"] = True
+        if done and not error:
+            ws0 = next((tm.last for tm in self._teams.values() if tm.last is not None), None)
+            ended = (ws0 is not None and ws0.game_state == POST_GAME) or self.instance.post_game_seen
+            info["post_game"] = bool(ended)                 # the game itself ended (kills or tower)
+            info["capped"] = not ended                       # we stopped it at cap_s
         return obs, done, info
 
     async def _post_game_reached(self, wait_s: float = 3.0) -> bool:

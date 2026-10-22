@@ -19,8 +19,11 @@ class League:
         self.frames = frames
         self.max_pool = max_pool
         self.rng = random.Random(seed)
-        self.pool: list[Path] = sorted(self.pool_dir.glob("*.pt"))
         self._cache: dict[Path, NetPolicy] = {}
+        self.pool: list[Path] = []
+        for p in sorted(self.pool_dir.glob("*.pt")):   # pre-existing pool files get the same frames check as add()
+            if int(torch.load(p, map_location="cpu")["frames"]) == frames:
+                self.pool.append(p)
 
     def add(self, checkpoint: Path, name: str) -> Path:
         ck = torch.load(checkpoint, map_location="cpu")

@@ -67,7 +67,8 @@ def evaluate_windows(net: Policy, batch: dict[str, torch.Tensor], anchor: Policy
             with torch.no_grad():
                 la, ha = anchor(units, mask, hero, ha)
                 lpa = masked_log_probs(la, tmask)
-            kl.append(_kl(lp["type"], lpa["type"]) + _kl(lp["dir"], lpa["dir"]) + _kl(lp["target"], lpa["target"]))
+            kl.append(_kl(lp["type"], lpa["type"]) + _kl(lp["dir"], lpa["dir"]) + _kl(lp["dist"], lpa["dist"])
+                      + _kl(lp["target"], lpa["target"]))
     stack = lambda xs: torch.stack(xs, 1)
     return stack(logp), stack(ent), stack(val), (stack(kl) if kl else torch.zeros(B, T))
 

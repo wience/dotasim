@@ -5,10 +5,9 @@ import numpy as np
 import pytest
 import torch
 
-from dotasim.model.features import featurize
-from dotasim.model.net import Policy, masked_log_probs, sample
+from dotasim.model.net import Policy
 from dotasim.train.buffer import Buffer, Step
-from dotasim.train.ppo import PPOConfig, evaluate_windows, joint_log_prob, ppo_update
+from dotasim.train.ppo import PPOConfig, evaluate_windows, ppo_update
 from dotasim.train.reward import GAMMA, step_reward
 
 DATA = Path(__file__).resolve().parents[1] / "data" / "sf_mirror_v1"
@@ -23,20 +22,19 @@ def _net() -> Policy:
 
 
 def _rollout(net, steps, team, buf, env, version, max_steps=400):
-    """Teacher-free rollout over a recorded episode: the net picks actions, rewards come from the recording."""
-    h = net.initial_state(1)
+    """Rollout through the production path: NetPolicy.act_batch_full picks actions and records logp/value/h0;
+    rewards come from the recording."""
+    from dotasim.train.policy import NetPolicy
+
+    pol = object.__new__(NetPolicy)
+    pol.net, pol.greedy, pol.states, pol.frames = net, False, {}, 5
+    value = 0.0
     for i in range(min(max_steps, len(steps) - 1)):
-        f = featurize(steps[i], team)
-        with torch.inference_mode():
-            logits, h_next = net(torch.from_numpy(f.units[None]), torch.from_numpy(f.unit_mask[None]),
-                                 torch.from_numpy(f.hero[None]), h)
-            tm = torch.from_numpy(f.type_mask[None])
-            a = sample(logits, tm, greedy=False)
-            logp = float(joint_log_prob(masked_log_probs(logits, tm), {k: torch.tensor([v]) for k, v in a.items()})[0])
-            value = float(logits["value"][0])
-        buf.add(env, team, Step(f.units, f.unit_mask, f.hero, f.type_mask, a, logp, value, h[0].numpy(), version,
+        d = pol.act_batch_full([(env, team, steps[i])])[0]
+        f = d["feats"]
+        buf.add(env, team, Step(f.units, f.unit_mask, f.hero, f.type_mask, d["a"], d["logp"], d["value"], d["h0"], version,
                                 step_reward(steps[i], steps[i + 1], team, GAMMA)))
-        h = h_next
+        value = d["value"]
     return float(value)
 
 
@@ -52,11 +50,11 @@ def test_buffer_gae_and_ppo_update():
     files = sorted(DATA.glob("ep*_t2.npz"))[:3]
     eps = [load_episode(f) for f in files]
     last_v0 = _rollout(net, eps[0], 2, buf, env=0, version=7)
-    buf.finish(0, 2, terminal_reward=1.0, error=False, last_value=0.0)          # won
+    buf.finish(0, 2, terminal_reward=1.0, error=False, last_value=0.0, capped=False)          # won
     last_v1 = _rollout(net, eps[1], 2, buf, env=1, version=7)
-    buf.finish(1, 2, terminal_reward=0.0, error=False, last_value=last_v1)      # capped: bootstrap
+    buf.finish(1, 2, terminal_reward=0.0, error=False, last_value=last_v1, capped=True)      # capped: bootstrap
     _rollout(net, eps[2], 2, buf, env=2, version=7, max_steps=100)
-    buf.finish(2, 2, terminal_reward=0.0, error=True, last_value=0.0)           # crashed: dropped
+    buf.finish(2, 2, terminal_reward=0.0, error=True, last_value=0.0, capped=False)           # crashed: dropped
 
     cfg = PPOConfig(gamma=GAMMA, lam=0.95)
     wins = buf.windows(cfg.gamma, cfg.lam)
@@ -94,7 +92,7 @@ def test_full_size_update_budget():
     for i in range(T):
         buf.add(0, 2, Step(rng.standard_normal((K, UD), dtype=np.float32), np.ones(K, bool), rng.standard_normal(HD, dtype=np.float32),
                            np.ones(7, bool), {"type": 1, "dir": 3, "dist": 1, "target": 0}, -1.5, 0.0, np.zeros(256, np.float32), 1, 0.0))
-    buf.finish(0, 2, 0.0, False, 0.0)
+    buf.finish(0, 2, 0.0, False, 0.0, capped=True)
     cfg = PPOConfig(gamma=GAMMA, lam=0.95, epochs=2, minibatch=64)
     wins = buf.windows(cfg.gamma, cfg.lam)
     t = time.perf_counter()

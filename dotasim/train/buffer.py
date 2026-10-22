@@ -32,6 +32,7 @@ class Trajectory:
     error: bool = False
     last_value: float = 0.0
     terminal: float = 0.0
+    capped: bool = False
     adv: np.ndarray | None = None
     ret: np.ndarray | None = None
 
@@ -67,9 +68,14 @@ class Buffer:
     def add(self, env: int, team: int, step: Step) -> None:
         self.trajs.setdefault((env, team), Trajectory(env, team)).steps.append(step)
 
-    def finish(self, env: int, team: int, terminal_reward: float, error: bool, last_value: float) -> None:
+    def finish(self, env: int, team: int, terminal_reward: float, error: bool, last_value: float,
+               capped: bool | None = None) -> None:
+        """capped=True bootstraps the last step from last_value (episode cut at cap_s); a finished game bootstraps 0."""
         t = self.trajs.pop((env, team), Trajectory(env, team))
-        t.done, t.error, t.last_value, t.terminal = True, error, last_value, terminal_reward
+        if capped is None:
+            capped = terminal_reward == 0.0 and not error
+        t.done, t.error, t.last_value, t.terminal = True, error, (last_value if capped else 0.0), terminal_reward
+        t.capped = capped
         self.finished.append(t)
 
     def trajectory(self, env: int, team: int) -> Trajectory:
@@ -83,7 +89,7 @@ class Buffer:
         r = np.array([s.reward for s in t.steps], np.float64)
         v = np.array([s.value for s in t.steps], np.float64)
         r[-1] += t.terminal
-        next_v = np.append(v[1:], 0.0 if t.terminal != 0.0 else t.last_value)   # bootstrap only when capped
+        next_v = np.append(v[1:], t.last_value if t.capped else 0.0)   # bootstrap V(s_T+1) only when cut at the cap
         adv = np.zeros(n)
         last = 0.0
         for i in range(n - 1, -1, -1):

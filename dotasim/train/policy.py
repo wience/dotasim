@@ -88,6 +88,18 @@ class NetPolicy:
     def act_batch(self, items: list[tuple[int, int, WorldState]]) -> list[Action]:
         return [d["action"] for d in self.act_batch_full(items)]
 
+    def value_of(self, env_index: int, team: int, ws: WorldState) -> float:
+        """V(s) for a final observation, from the current GRU state, without advancing it (bootstrap at cap)."""
+        import torch
+        from dotasim.model.features import featurize
+
+        f = featurize(ws, team)
+        h0 = self.states.get((env_index, team), self.net.initial_state(1)[0]).unsqueeze(0)
+        with torch.inference_mode():
+            logits, _ = self.net(torch.from_numpy(f.units[None]), torch.from_numpy(f.unit_mask[None]),
+                                 torch.from_numpy(f.hero[None]), h0)
+        return float(logits["value"][0])
+
     @staticmethod
     def _to_action(ws: WorldState, team: int, f, a: dict[str, int]) -> Action:
         from dotasim.model.heroes import ACTIVE_NAMES

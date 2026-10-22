@@ -30,6 +30,10 @@ class Policy(nn.Module):
         return torch.zeros(batch, self.hidden)
 
     def forward(self, units: Tensor, unit_mask: Tensor, hero: Tensor, h: Tensor) -> tuple[dict[str, Tensor], Tensor]:
+        empty = ~unit_mask.any(1)
+        if empty.any():   # a dead or hidden hero yields no tokens; keep one dummy key so the encoder has something to attend to
+            unit_mask = unit_mask.clone()
+            unit_mask[empty, 0] = True
         tok = self.unit_embed(units)                                   # [B,K,d]
         enc = self.encoder(tok, src_key_padding_mask=~unit_mask)       # padded tokens are ignored as keys
         maskf = unit_mask.unsqueeze(-1).to(enc.dtype)
