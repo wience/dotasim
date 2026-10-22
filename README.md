@@ -52,8 +52,35 @@ python -m pytest -m "not slow"
 python -m pytest -m slow
 ```
 
-Replays: every instance records SourceTV to `~/dota2/game/dota/replays/`. Copy a `.dem` into the
-Windows client's `game/dota/replays/` and launch the client with `+playdemo replays/<file>.dem`.
+Replays: every instance records SourceTV to `~/dota2/game/dota/replays/` (newest 30 kept). Copy a `.dem`
+into the Windows client's `game/dota/replays/` and launch the client with `+playdemo replays/<file>.dem`.
+
+## Phase 2: imitation
+
+Record Valve-vs-Valve games (both views, observer stats), train the cloning model, evaluate vs passive bots:
+
+```bash
+python -m dotasim.data.record --games 24 --instances 8 --frames 5 --difficulty 4 --out data/sf_mirror_v1
+```
+
+```bash
+python -m dotasim.train.bc --data data/sf_mirror_v1 --epochs 12 --batch 32 --out runs/bc_v1
+```
+
+```bash
+python -m dotasim.eval.eval --checkpoint runs/bc_v1/policy.pt --games 3 --instances 3 --difficulty 0 --cap 300
+```
+
+TensorBoard: `tensorboard --logdir runs` then http://localhost:6006.
+
+## Phase 3: self-play
+
+```bash
+python -m dotasim.train.selfplay --init runs/bc_v1/policy.pt --instances 12 --iterations 150 --out runs/sp_v1 --eval-every 10
+```
+
+Each iteration plays one episode per server (league: 70% self, 20% past checkpoint, 10% Valve unfair),
+runs one PPO update, and logs a JSON line to `runs/sp_v1/log.jsonl`.
 
 ## How it works
 
