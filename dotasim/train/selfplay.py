@@ -24,6 +24,7 @@ from dotasim.train.reward import step_reward, terminal_reward, winner
 from dotasim.train.syncfleet import SyncFleet
 
 SF = "npc_dota_hero_nevermore"
+ROLLOUT_THREADS, UPDATE_THREADS = 4, 8
 
 
 @dataclass
@@ -130,7 +131,7 @@ async def run_iteration(cfg: SelfPlayConfig, live: NetPolicy, league: League, ve
 async def train_selfplay(cfg: SelfPlayConfig) -> dict:
     cfg.out = Path(cfg.out)
     cfg.out.mkdir(parents=True, exist_ok=True)
-    live = NetPolicy(cfg.init, greedy=False, threads=8)
+    live = NetPolicy(cfg.init, greedy=False, threads=ROLLOUT_THREADS)   # 8 threads next to 12 servers spin-waits and 30x slower decisions
     anchor = Policy()
     anchor.load_state_dict(live.net.state_dict())
     league = League(cfg.out / "pool", cfg.frames)
@@ -145,7 +146,9 @@ async def train_selfplay(cfg: SelfPlayConfig) -> dict:
         try:
             buf, totals, outcomes = await run_iteration(cfg, live, league, version, it)
             windows = buf.windows(cfg.ppo.gamma, cfg.ppo.lam)
+            torch.set_num_threads(UPDATE_THREADS)
             stats = ppo_update(live.net, anchor, windows, cfg.ppo, opt, version=version) if windows else {}
+            torch.set_num_threads(ROLLOUT_THREADS)
         except Exception as e:  # noqa: BLE001 - one bad iteration must not end an unattended run
             line = {"iteration": it + 1, "error": f"{type(e).__name__}: {e}", "traceback": traceback.format_exc()[-2000:],
                     "wall_s": round(time.time() - t0, 1)}
@@ -160,7 +163,7 @@ async def train_selfplay(cfg: SelfPlayConfig) -> dict:
             anchor.load_state_dict(live.net.state_dict())
         line = {"iteration": it + 1, "version": version, "steps": buf.steps(), "trajectories": len([t for t in buf.finished if not t.error]),
                 "episodes": totals["episodes"], "failed": totals.get("failed", 0), "lua_timeouts": totals["lua_timeouts"],
-                "errors": len(totals["errors"]), "speed_x": totals["speed_x_mean"], "act_ms": totals["act_ms_mean"],
+                "errors": len(totals["errors"]), "error_samples": totals["errors"][:3], "speed_x": totals["speed_x_mean"], "act_ms": totals["act_ms_mean"],
                 "outcomes": outcomes, "wall_s": round(time.time() - t0, 1), **stats}
         for k in ("loss_pi", "loss_v", "entropy", "kl_anchor", "clipfrac", "approx_kl"):
             if k in stats:
