@@ -16,7 +16,7 @@
 - Hero pool for this phase: Shadow Fiend mirror only (`npc_dota_hero_nevermore`). Hero-conditioning stays in the tensors (hero id field) but only one id occurs.
 - Unit order codes (verified on the golden message and pinned by Task 3's golden check): 0 none, 1 move to position, 4 attack target, 6 cast target; 5 cast position, 8 cast no target are expected for razes and requiem and are pinned the same way.
 - Shadow Fiend ability slots in the worldstate: slot 0, 1, 2 are the three razes (ids 5059, 5060, 5061), slot 4 is Requiem of Souls (id 5063 on this build, verify in Task 3); the rest are passives and talents and are never targets of a cast label.
-- Decision interval: recordings at `frames=5` (0.175 s); training and eval at the frames the recording used. Subsampling to 10 is a later experiment.
+- Decision interval: recordings at `frames=5` (0.167 s, 5 ticks); training and eval at the frames the recording used. Subsampling to 10 is a later experiment.
 - Episode cap for recording and eval: 600 game seconds. Difficulty for the imitation source: 4 (unfair). Difficulty for the eval opponent: 0 (passive), verified to make the enemy hero non-aggressive.
 - Model: unit MLP to width 128, 4 transformer layers (4 heads, FF 256), mean-pool + hero token into a `GRUCell(128+128 -> 256)`, heads: action type (7 = none, move, attack, cast slot 0, 1, 2, 4), move direction (16 bins), move distance (4 bins: 150, 300, 600, 1200 units), target unit (pointer over K=48 unit tokens). ~1M parameters.
 - Training: Adam, lr 3e-4, batch of 32 windows of 32 steps (truncated BPTT), masked cross-entropy per head, 20 epochs over the recording, TensorBoard scalars under `runs/<run>/tb`.

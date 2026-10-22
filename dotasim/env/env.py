@@ -41,6 +41,7 @@ class _Team:
     calib_t: float = 0.0           # dota_time of the calibration worldstate
     returned: bool = False         # obs for this team is handed back from reset/step
     last: WorldState | None = None
+    last_raw: bytes = b""
 
 
 class DotaEnv:
@@ -104,6 +105,10 @@ class DotaEnv:
     def ws_index(self, team: int) -> int:
         return self._teams[team].ws_idx
 
+    def last_raw(self, team: int) -> bytes:
+        """Raw protobuf bytes of the latest worldstate for a watched team (for recording)."""
+        return self._teams[team].last_raw
+
     async def step(self, actions: dict[int, Action]) -> tuple[dict[int, WorldState], bool, dict]:
         watch = [tm for tm in self._teams.values() if tm.stream is not None]
         for tm in watch:
@@ -126,7 +131,7 @@ class DotaEnv:
             ws = parse(raw)
             # same formula as Lua: index = ticks since calibration / frames, so a dropped message cannot desync us
             tm.ws_idx = round((ws.dota_time - tm.calib_t) * TICKS_PER_S / self.matchup.frames)
-            tm.last = ws
+            tm.last, tm.last_raw = ws, raw
             self._merge_lua_obs(tm, ws)
             if tm.returned:
                 obs[tm.team] = ws

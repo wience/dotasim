@@ -35,6 +35,7 @@ class Fleet:
         self.envs = [DotaEnv(InstanceConfig(index=i, dota_dir=dota, timescale=timescale, frames=matchup.frames,
                                             difficulty=matchup.difficulty, run_dir=self.run_dir), bots) for i in range(n)]
         self.infer_ms: list[float] = []
+        self.on_step = None   # optional callback(env_index, obs_by_team, done, info) after every step
         self.episodes = self.steps = self.lua_timeouts = 0
         self.errors: list[str] = []
         self._t0 = 0.0
@@ -82,7 +83,11 @@ class Fleet:
                         obs, done, info = await env.step(actions)
                         steps += 1
                         self.steps += 1
-                        if done or (max_steps and steps >= max_steps):
+                        if max_steps and steps >= max_steps:
+                            done = True
+                        if self.on_step is not None:
+                            self.on_step(i, obs, done, info)
+                        if done:
                             break
                 except Exception as e:  # a policy or parse bug on one instance must not take the fleet down
                     msg = f"instance {i}: {type(e).__name__}: {e}"
