@@ -25,7 +25,7 @@ def test_twelve_selfplay_servers_batched(tmp_path):
     # one env finishing (post-game detection waits up to 3 s) stalls the others' Lua waits once; allow 0.1%
     assert totals["lua_timeouts"] <= max(1, totals["steps"] // 1000), totals
     print(totals)
-    assert totals["speed_x_mean"] >= 3, totals   # measured 3.2x with 12 servers; python featurize is the bottleneck (queued)
+    assert totals["speed_x_mean"] >= 3, totals   # measured 3.2x with 12 servers: the 8-core CPU is saturated by the servers themselves
     assert totals["act_ms_mean"] < 25, totals     # measured 18.6 ms per batched half-step incl. featurize
     status = json.loads((tmp_path / "status.json").read_text())
     assert len(status["instances"]) == 12
