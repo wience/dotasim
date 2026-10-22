@@ -128,6 +128,23 @@ async def run_iteration(cfg: SelfPlayConfig, live: NetPolicy, league: League, ve
     return col.buf, totals, col.outcomes
 
 
+async def wait_servers_exit(max_s: float = 40.0) -> int:
+    """Block until no game server process is left from the previous iteration (they exit a few seconds after SIGTERM)."""
+    import psutil
+    t0 = time.time()
+    while time.time() - t0 < max_s:
+        alive = [p for p in psutil.process_iter(["cmdline"]) if any("linuxsteamrt64/dota2" in (c or "") for c in (p.info["cmdline"] or []))]
+        if not alive:
+            return 0
+        await asyncio.sleep(1.0)
+    for p in alive:
+        try:
+            p.kill()
+        except psutil.Error:
+            pass
+    return len(alive)
+
+
 async def train_selfplay(cfg: SelfPlayConfig) -> dict:
     cfg.out = Path(cfg.out)
     cfg.out.mkdir(parents=True, exist_ok=True)
@@ -144,6 +161,7 @@ async def train_selfplay(cfg: SelfPlayConfig) -> dict:
     for it in range(cfg.iterations):
         t0 = time.time()
         try:
+            await wait_servers_exit()   # launching 12 new servers while 12 old ones exit starves the decision loop
             buf, totals, outcomes = await run_iteration(cfg, live, league, version, it)
             windows = buf.windows(cfg.ppo.gamma, cfg.ppo.lam)
             torch.set_num_threads(UPDATE_THREADS)

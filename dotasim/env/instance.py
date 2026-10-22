@@ -201,7 +201,8 @@ class Instance:
         self._log_pos += len(chunk)
         for line in chunk.decode(errors="replace").splitlines():
             self._tail.append(line)
-            if "DOTA_GAMERULES_STATE_POST_GAME" in line:
+            if "DOTA_GAMERULES_STATE_POST_GAME" in line and self.lua.tokens:
+                # only after our own bots reported in: a previous server exiting can still write into this file
                 self.post_game_seen = True
             if m := LUARDY.search(line):
                 token, team, pid, role = m.group(1), int(m.group(2)), int(m.group(3)), m.group(4)

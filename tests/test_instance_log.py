@@ -37,6 +37,12 @@ def test_split_post_game_line_is_seen(tmp_path):
     inst = _instance(tmp_path)
     log = inst.cfg.console_log
     with open(log, "a") as f:
+        # a POST_GAME line before our bots report in belongs to the previous server exiting into the same file
+        f.write("S:Gamerules: entering state 'DOTA_GAMERULES_STATE_POST_GAME'\n")
+    inst.console_tail()
+    assert inst.post_game_seen is False
+    with open(log, "a") as f:
+        f.write("10/22 21:00:00 [VScript] LUARDY token=abc team=2 pid=0 role=controlled\n")
         f.write("S:Gamerules: entering state 'DOTA_GAMERULES_STATE_PO")
     inst.console_tail()
     assert inst.post_game_seen is False

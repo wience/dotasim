@@ -3,7 +3,7 @@
 local M = {}
 
 local TICK = 1 / 30
-local WAIT_TIMEOUT_S = 1.0
+local WAIT_TIMEOUT_S = 3.0   -- a load spike (12 servers launching at once) must not desync the lockstep
 local FIND_RADIUS = 1600
 local OBS_EVERY_TICKS = 15
 
