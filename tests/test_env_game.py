@@ -101,6 +101,67 @@ def test_process_death_is_done():
     asyncio.run(asyncio.wait_for(run(), 300))
 
 
+def test_stalled_server_is_done_within_five_seconds():
+    env = _env()
+
+    async def run():
+        await env.reset(_matchup())
+        pid = env.instance.proc.pid
+        try:
+            os.kill(pid, signal.SIGSTOP)
+            t0 = time.monotonic()
+            obs, done, info = await env.step({2: Action()})
+            elapsed = time.monotonic() - t0
+            assert done is True and "error" in info, info
+            assert elapsed < 5.5, elapsed
+        finally:
+            try:
+                os.kill(pid, signal.SIGCONT)
+            except ProcessLookupError:
+                pass
+            await env.close()
+
+    asyncio.run(asyncio.wait_for(run(), 300))
+
+
+def test_two_controlled_teams_close_cleanly_after_death():
+    env = _env()
+
+    async def run():
+        obs = await env.reset(Matchup(heroes={0: SF, 5: SF}, roles={0: "controlled", 5: "controlled"}))
+        assert set(obs) == {2, 3}
+        pid = env.instance.proc.pid
+        os.kill(pid, signal.SIGKILL)
+        obs, done, info = await env.step({2: Action(), 3: Action()})
+        assert done is True and "error" in info
+        await env.close()  # must not raise even though both streams failed together
+        assert env.instance.alive() is False
+
+    asyncio.run(asyncio.wait_for(run(), 300))
+
+
+def test_worldstate_index_matches_tick_index():
+    """Python's worldstate index must be the tick-derived index Lua uses, not a message counter."""
+    env = _env()
+
+    async def run():
+        obs = await env.reset(_matchup())
+        calib = obs[2].dota_time
+        try:
+            for _ in range(60):
+                obs, done, info = await env.step({2: Action()})
+                if done:
+                    break
+            tm = env._teams[2]
+            expected = round((tm.last.dota_time - calib) * 30 / env.matchup.frames)
+            assert tm.ws_idx == expected, (tm.ws_idx, expected)
+            assert env.ws_index(2) == expected
+        finally:
+            await env.close()
+
+    asyncio.run(asyncio.wait_for(run(), 300))
+
+
 def test_slow_policy_is_counted():
     env = _env()
 

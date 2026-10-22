@@ -12,7 +12,13 @@ from dotasim.env.instance import Instance, InstanceConfig, InstanceError
 from dotasim.env.worldstate import WorldState, parse, summary
 
 PRE_GAME, GAME_IN_PROGRESS, POST_GAME = 4, 5, 6
-STEP_TIMEOUT_S = 5.0  # wall time to wait for the next worldstate before declaring the instance dead
+STEP_TIMEOUT_S = 5.0      # wall time to wait for the next worldstate before declaring the instance dead
+CONNECT_TIMEOUT_S = 120.0  # wall time for the first worldstate after launch (map load + socket open)
+TICKS_PER_S = 30
+
+
+class StreamTimeout(InstanceError):
+    """No worldstate arrived within the step timeout (the server may be stalled or at post-game)."""
 
 
 @dataclass
@@ -30,7 +36,8 @@ class _Team:
     token: str
     controlled: bool
     stream: object = None          # async generator of raw worldstate bytes
-    ws_idx: int = -1               # index of the latest worldstate since calibration (calib ws = 0)
+    ws_idx: int = -1               # tick-derived index of the latest worldstate since calibration (calib ws = 0)
+    calib_t: float = 0.0           # dota_time of the calibration worldstate
     last: WorldState | None = None
 
 
@@ -69,11 +76,10 @@ class DotaEnv:
         self.phase = "pregame"
         obs: dict[int, WorldState] = {}
         for tm in watch:
-            while True:
+            ws = parse(await self._next_raw(tm, CONNECT_TIMEOUT_S))  # first message: includes the socket connect
+            while ws.game_state != PRE_GAME:
                 ws = parse(await self._next_raw(tm))
-                if ws.game_state == PRE_GAME:
-                    break
-            tm.ws_idx, tm.last = 0, ws
+            tm.ws_idx, tm.calib_t, tm.last = 0, ws.dota_time, ws
             if tm.controlled:
                 self.channel.write_calib(tm.token, ws.dota_time, matchup.frames)
                 obs[tm.team] = ws
@@ -81,14 +87,17 @@ class DotaEnv:
         self._hist.append((time.monotonic(), ws.dota_time))
         return obs
 
-    async def _next_raw(self, tm: _Team) -> bytes:
+    async def _next_raw(self, tm: _Team, timeout: float = STEP_TIMEOUT_S) -> bytes:
         try:
-            return await asyncio.wait_for(tm.stream.__anext__(), STEP_TIMEOUT_S)
+            return await asyncio.wait_for(tm.stream.__anext__(), timeout)
         except StopAsyncIteration:
             raise InstanceError(f"instance {self.cfg.index}: worldstate stream for team {tm.team} closed")
         except asyncio.TimeoutError:
-            raise InstanceError(f"instance {self.cfg.index}: no worldstate for team {tm.team} in {STEP_TIMEOUT_S}s "
+            raise StreamTimeout(f"instance {self.cfg.index}: no worldstate for team {tm.team} in {timeout}s "
                                 f"(alive={self.instance.alive()})")
+
+    def ws_index(self, team: int) -> int:
+        return self._teams[team].ws_idx
 
     async def step(self, actions: dict[int, Action]) -> tuple[dict[int, WorldState], bool, dict]:
         watch = [tm for tm in self._teams.values() if tm.stream is not None]
@@ -97,17 +106,21 @@ class DotaEnv:
                 self.channel.write_action(tm.token, tm.ws_idx, actions.get(tm.team, Action()))
         obs: dict[int, WorldState] = {}
         done, error = False, None
-        try:
-            raws = await asyncio.gather(*(self._next_raw(tm) for tm in watch))
-        except InstanceError as e:
+        results = await asyncio.gather(*(self._next_raw(tm) for tm in watch), return_exceptions=True)
+        failure = next((r for r in results if isinstance(r, BaseException)), None)
+        if failure is not None:
             done, raws = True, []
-            if await self._post_game_reached():
+            # On a read timeout the log already had STEP_TIMEOUT_S to catch up; on EOF give it a moment.
+            if await self._post_game_reached(wait_s=0.0 if isinstance(failure, StreamTimeout) else 3.0):
                 self.phase = "postgame"  # the server stops streaming at POST_GAME and later closes: a clean finish
             else:
-                error = str(e)
+                error = str(failure)
+        else:
+            raws = results
         for tm, raw in zip(watch, raws):
             ws = parse(raw)
-            tm.ws_idx += 1
+            # same formula as Lua: index = ticks since calibration / frames, so a dropped message cannot desync us
+            tm.ws_idx = round((ws.dota_time - tm.calib_t) * TICKS_PER_S / self.matchup.frames)
             tm.last = ws
             self._merge_lua_obs(tm, ws)
             if tm.controlled:
@@ -129,12 +142,17 @@ class DotaEnv:
 
     async def _post_game_reached(self, wait_s: float = 3.0) -> bool:
         """The console log can trail the socket by a moment; give the POST_GAME line a few seconds to land."""
+        self.instance.console_tail()
+        if self.instance.post_game_seen:
+            return True
+        if not self.instance.alive():
+            return False
         for _ in range(int(wait_s / 0.2)):
+            await asyncio.sleep(0.2)
             self.instance.console_tail()
             if self.instance.post_game_seen:
                 return True
-            await asyncio.sleep(0.2)
-        return self.instance.post_game_seen
+        return False
 
     def _merge_lua_obs(self, tm: _Team, ws: WorldState) -> None:
         if not tm.controlled:
@@ -145,11 +163,16 @@ class DotaEnv:
             hero.last_hits, hero.denies, hero.gold, hero.xp = o["last_hits"], o["denies"], o["gold"], o["xp"]
 
     async def close(self) -> None:
-        for tm in self._teams.values():
-            if tm.stream is not None:
-                await tm.stream.aclose()
-                tm.stream = None
-        await self.instance.kill()
+        try:
+            for tm in self._teams.values():
+                if tm.stream is not None:
+                    try:
+                        await tm.stream.aclose()
+                    except (RuntimeError, OSError):
+                        pass  # a generator still mid-read after a failed gather; the kill below ends it
+                    tm.stream = None
+        finally:
+            await self.instance.kill()
         if self.phase not in ("idle", "dead", "postgame"):
             self.phase = "idle"
 

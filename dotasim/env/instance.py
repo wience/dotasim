@@ -78,8 +78,8 @@ class InstanceConfig:
         ]
 
 
-def _port_in_use(port: int) -> bool:
-    with socket.socket() as s:
+def _port_in_use(port: int, kind: int = socket.SOCK_STREAM) -> bool:
+    with socket.socket(socket.AF_INET, kind) as s:
         s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         try:
             s.bind(("0.0.0.0", port))
@@ -110,21 +110,30 @@ class Instance:
 
     # ---- lifecycle -------------------------------------------------------
     async def launch(self) -> None:
-        for port in (self.cfg.server_port, self.cfg.ws_port(2), self.cfg.ws_port(3)):
-            if _port_in_use(port):
+        # the game server and SourceTV speak UDP; the worldstate ports are TCP
+        checks = [(self.cfg.server_port, socket.SOCK_DGRAM), (self.cfg.tv_port, socket.SOCK_DGRAM),
+                  (self.cfg.ws_port(2), socket.SOCK_STREAM), (self.cfg.ws_port(3), socket.SOCK_STREAM)]
+        for port, kind in checks:
+            if _port_in_use(port, kind):
                 raise InstanceError(f"port {port} in use (instance {self.cfg.index})")
         self.cfg.console_log.parent.mkdir(parents=True, exist_ok=True)
         self.cfg.console_log.write_text("")
         self._log_pos = 0
+        self._tail.clear()
         self.lua = _LuaState()
         self.post_game_seen = False
         self.cfg.run_dir.mkdir(parents=True, exist_ok=True)
         self._out = open(self.cfg.run_dir / f"instance_{self.cfg.index}.out", "ab")
         env = dict(os.environ, LD_LIBRARY_PATH=str(self.cfg.game_dir / "bin" / "linuxsteamrt64"), ENABLE_PATHMATCH="1")
-        self.proc = await asyncio.create_subprocess_exec(
-            *self.cfg.args(), cwd=str(self.cfg.game_dir), env=env,
-            stdout=self._out, stderr=asyncio.subprocess.STDOUT, start_new_session=True,
-        )
+        try:
+            self.proc = await asyncio.create_subprocess_exec(
+                *self.cfg.args(), cwd=str(self.cfg.game_dir), env=env,
+                stdout=self._out, stderr=asyncio.subprocess.STDOUT, start_new_session=True,
+            )
+        except Exception:
+            self._out.close()
+            self._out = None
+            raise
         self._ps = psutil.Process(self.proc.pid)
 
     def alive(self) -> bool:
@@ -167,9 +176,14 @@ class Instance:
             with open(self.cfg.console_log, "rb") as f:
                 f.seek(self._log_pos)
                 chunk = f.read()
-                self._log_pos += len(chunk)
         except OSError:
             return
+        # the game may be mid-write: only consume up to the last complete line
+        nl = chunk.rfind(b"\n")
+        if nl < 0:
+            return
+        chunk = chunk[:nl + 1]
+        self._log_pos += len(chunk)
         for line in chunk.decode(errors="replace").splitlines():
             self._tail.append(line)
             if "DOTA_GAMERULES_STATE_POST_GAME" in line:
@@ -198,7 +212,8 @@ class Instance:
             if not self.alive():
                 raise InstanceError(f"instance {self.cfg.index} died before handshake:\n" + "\n".join(self.console_tail()))
             await asyncio.sleep(0.2)
-        raise InstanceError(f"instance {self.cfg.index}: no LUARDY within {timeout}s:\n" + "\n".join(self.console_tail()))
+        raise InstanceError(f"instance {self.cfg.index}: no LUARDY for both teams within {timeout}s; "
+                            f"tokens seen {self.lua.tokens}, roles {self.lua.roles}; console tail:\n" + "\n".join(self.console_tail()))
 
     def console_tail(self, n: int = 20) -> list[str]:
         self._poll_log()
@@ -234,6 +249,10 @@ class Instance:
                     return
         finally:
             writer.close()
+            try:
+                await writer.wait_closed()
+            except (OSError, asyncio.CancelledError):
+                pass
 
     # ---- resources -------------------------------------------------------
     def stats(self) -> dict:

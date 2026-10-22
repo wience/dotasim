@@ -39,6 +39,39 @@ def test_instance_handshake_and_worldstates():
     asyncio.run(asyncio.wait_for(run(), 150))
 
 
+def test_handshake_times_out_with_console_tail_when_lua_never_reports():
+    bots = install_scripts(dota_dir())
+    # No bot_axe.lua stub exists, so the radiant bot never prints LUARDY.
+    Channel(bots).write_config(10, {0: "npc_dota_hero_axe", 5: SF}, {0: "controlled", 5: "valve"})
+    inst = Instance(InstanceConfig(index=0, dota_dir=dota_dir()))
+
+    async def run():
+        await inst.launch()
+        try:
+            with pytest.raises(InstanceError) as e:
+                await inst.handshake(timeout=25)
+            msg = str(e.value)
+            assert "no LUARDY" in msg and "tokens seen {3:" in msg  # dire reported, radiant never did
+            assert "console tail:" in msg and len(msg.splitlines()) > 5
+        finally:
+            await inst.kill()
+
+    asyncio.run(asyncio.wait_for(run(), 120))
+
+
+def test_launch_fails_fast_when_udp_server_port_is_bound():
+    cfg = InstanceConfig(index=0, dota_dir=dota_dir())
+    blocker = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    blocker.bind(("0.0.0.0", cfg.server_port))
+    inst = Instance(cfg)
+    try:
+        with pytest.raises(InstanceError, match=str(cfg.server_port)):
+            asyncio.run(asyncio.wait_for(inst.launch(), 2))
+    finally:
+        blocker.close()
+        asyncio.run(inst.kill())
+
+
 def test_launch_fails_fast_when_port_is_bound():
     cfg = InstanceConfig(index=0, dota_dir=dota_dir())
     blocker = socket.socket()

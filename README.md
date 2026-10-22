@@ -8,7 +8,8 @@ Design: `docs/superpowers/specs/2026-10-22-dotasim-design.md`. Current phase pla
 Experiment log: `docs/experiments.md`. Spike notes: `docs/2026-10-22-spike-headless-harness.md`.
 
 Phase 1 (done): harness and fleet page. 12 headless servers in WSL2 at 10x real time, 0 lockstep
-timeouts, about 72x real time aggregate, 1 GB and half a core per server.
+timeouts, about 62x real time aggregate with replay recording on (72x without), 1 GB and half a
+core per server.
 
 ## Setup (Windows host, WSL2 Ubuntu)
 

@@ -27,6 +27,8 @@ Observations:
 
 Verdict: harness exit criteria met. Decision interval, batching and a real model are phase 2 questions.
 
+Rerun with SourceTV recording on every instance (the shipped default after the live-view work, `runs/phase1-baseline-tv`): 12 episodes, 24,773 steps, 132.6 s wall, 326 games per hour, about 62x aggregate, 0 Lua timeouts. Recording costs roughly 15% throughput and writes about 8 MB per 10-minute game into `~/dota2/game/dota/replays/`; a retention policy is a phase 3 item before thousand-episode runs.
+
 ![Fleet status page during a two-instance random-policy run](img/phase1-status-page.jpg)
 
 ## 2026-10-22 Live view: spectating a WSL2 server from the Windows client

@@ -175,3 +175,5 @@ Three kinds only:
 - ROCm on gfx1201 under WSL2 is fragile; CPU remains the primary path.
 - Valve patches can change the proto and the bot API. Pin the proto commit; keep the end-to-end test as the canary.
 - Dota 2 is not deterministic; experiments compare distributions, not single games.
+- SourceTV auto-recording is on for every instance (about 8 MB per 10-minute game). Phase 3 adds a retention policy (keep eval and notable games, delete the rest) before thousand-episode runs.
+- Live spectating of a WSL2 server from the Windows client was rejected by the game (no lobby; TV relay password) in phase 1. The status-page minimap is the live view; replays cover the writeup.

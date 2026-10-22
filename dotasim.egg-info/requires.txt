@@ -1,6 +1,0 @@
-protobuf>=5
-psutil>=6
-
-[dev]
-pytest>=8
-grpcio-tools>=1.60

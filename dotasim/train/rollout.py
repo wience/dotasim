@@ -74,15 +74,21 @@ class Fleet:
                     env.last_error, env.phase = str(e), "dead"
                     return
                 steps, info = 0, {}
-                while True:
-                    t0 = time.perf_counter()
-                    actions = self.policy.act(obs) if obs else {}
-                    self.infer_ms.append((time.perf_counter() - t0) * 1000)
-                    obs, done, info = await env.step(actions)
-                    steps += 1
-                    self.steps += 1
-                    if done or (max_steps and steps >= max_steps):
-                        break
+                try:
+                    while True:
+                        t0 = time.perf_counter()
+                        actions = self.policy.act(obs) if obs else {}
+                        self.infer_ms.append((time.perf_counter() - t0) * 1000)
+                        obs, done, info = await env.step(actions)
+                        steps += 1
+                        self.steps += 1
+                        if done or (max_steps and steps >= max_steps):
+                            break
+                except Exception as e:  # a policy or parse bug on one instance must not take the fleet down
+                    msg = f"instance {i}: {type(e).__name__}: {e}"
+                    self.errors.append(msg)
+                    env.last_error, env.phase = msg, "dead"
+                    return
                 self.episodes += 1
                 self.lua_timeouts += info.get("lua_timeouts", 0)
                 if "error" in info:
