@@ -50,6 +50,10 @@ class InstanceConfig:
         return 12120 + 2 * self.index + (team - 2)
 
     @property
+    def tv_port(self) -> int:
+        return 28000 + self.index
+
+    @property
     def console_log(self) -> Path:
         return self.bots_dir / f"console_{self.index}.log"
 
@@ -69,6 +73,8 @@ class InstanceConfig:
             "-botworldstatetosocket_dire", str(self.ws_port(3)),
             "-botworldstatetosocket_frames", str(self.frames), "-botworldstatesocket_threaded",
             "+dota_auto_surrender_all_disconnected_timeout", "180",
+            # SourceTV: lets a real client spectate (connect <ip>:<tv_port>) and records replays
+            "+tv_enable", "1", "+tv_port", str(self.tv_port), "+tv_delay", "0", "+tv_autorecord", "1",
         ]
 
 

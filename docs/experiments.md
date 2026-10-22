@@ -28,3 +28,19 @@ Observations:
 Verdict: harness exit criteria met. Decision interval, batching and a real model are phase 2 questions.
 
 ![Fleet status page during a two-instance random-policy run](img/phase1-status-page.jpg)
+
+## 2026-10-22 Live view: spectating a WSL2 server from the Windows client
+
+Goal: watch a running training game with the real client instead of the canvas minimap.
+
+| attempt | server flags | client | result |
+|---|---|---|---|
+| direct connect | `+sv_lan 1`, no lobby | `+connect 172.21.211.69:27015` | handshake completes, server rejects with `NETWORK_DISCONNECT_REJECT_NOLOBBY` |
+| SourceTV | `+tv_enable 1 +tv_port 28000 +tv_delay 0` | `+connect 172.21.211.69:28000` | connects, reaches level load, dropped with `NETWORK_DISCONNECT_BADRELAYPASSWORD` |
+| SourceTV + password | above plus `+tv_password dotasim +tv_relaypassword dotasim` | `+password dotasim +connect ...:28000` | connects, dropped with `NETWORK_DISCONNECT_INVALID` |
+
+Networking between the Windows client and the WSL2 server works (challenge and connect exchanged on UDP 27015 and 28000, no firewall change needed). The rejection is the game's lobby and TV policy, not the network. Time-boxed to three attempts; live spectating is deferred. The canvas minimap on the status page stays the live view, and a Windows instance launched without `-dedicated` is the rendered debugging option.
+
+SourceTV auto-recording works on the dedicated server: `~/dota2/game/dota/replays/auto-<date>-start-Dota_2.dem` (about 7 MB for 2 minutes at 10x). The server keeps `+tv_enable 1 +tv_autorecord 1 +tv_delay 0 +tv_port 28000+i`; the TV password flags were dropped.
+
+Replay playback verified: copying the server's `.dem` into the Windows client's `game/dota/replays/` and launching with `+playdemo replays/<file>.dem` plays it with the real UI (reached PRE_GAME in the client log). That is the "watch what it learned" path for the writeup.
