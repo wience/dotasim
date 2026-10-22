@@ -46,3 +46,19 @@ Networking between the Windows client and the WSL2 server works (challenge and c
 SourceTV auto-recording works on the dedicated server: `~/dota2/game/dota/replays/auto-<date>-start-Dota_2.dem` (about 7 MB for 2 minutes at 10x). The server keeps `+tv_enable 1 +tv_autorecord 1 +tv_delay 0 +tv_port 28000+i`; the TV password flags were dropped.
 
 Replay playback verified: copying the server's `.dem` into the Windows client's `game/dota/replays/` and launching with `+playdemo replays/<file>.dem` plays it with the real UI (reached PRE_GAME in the client log). That is the "watch what it learned" path for the writeup.
+
+## 2026-10-23 Phase 2 dataset: sf_mirror_v1
+
+Valve unfair vs Valve unfair, Shadow Fiend mirror, mode 21, 5 frames per worldstate (0.167 s), 600 s cap, both teams' views recorded with observer stats (last hits, denies, gold, net worth, level per hero).
+
+| metric | value |
+|---|---|
+| games | 24 requested, 23 recorded (1 lost to a dropped stream) |
+| files | 46 (one per team per game) |
+| steps | 180,502 |
+| size | 1.4 GB raw zlib-compressed worldstates |
+| recording wall | 7.6 min on 8 instances (188 games/h) |
+
+Lesson: recording on 12 instances at 5 frames with both teams watched dropped most streams. The game closes a worldstate socket the moment its reader stalls, and the episode-end save (recompressing 40 MB on the event loop) stalled every other instance for seconds. Per-frame zlib in a thread pool and plain `np.savez` in a worker fixed it.
+
+Label mix over the first four episodes (Valve SF): none 34%, move 58%, attack 8%, casts under 1%. The Valve bot's current order is `MOVE_TO_TARGET` more often than `MOVE_TO_POSITION`; both label as moves from displacement.
