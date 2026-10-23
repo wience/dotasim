@@ -114,3 +114,12 @@ policy on 8 torch threads next to 12 servers on 16 logical CPUs, a batched decis
 every Lua wait timed out, the game clock crawled at 0.1x and the server ended games while still in pre-game
 (`runs/sp_v1_threads8`). Rollouts now use 4 threads and the update 8. The clean run (`runs/sp_v1`): iteration 2 =
 42,876 steps, 24 trajectories, 4.0x per server, 16.9 ms per decision, 0.2% Lua timeouts, 0 errors.
+
+Two further collapse mechanisms found and fixed in the same hour (each cost a restart; `runs/sp_v1_contaminated`,
+`runs/sp_v1` first four iterations): (a) a server exiting from the previous iteration writes its POST_GAME line into
+the console log the new server of the same index just truncated, so the new instance believed its game had ended at
+the first stream hiccup; the instance now ignores post-game lines seen before its own Lua handshake, and the loop
+waits for every old server to exit before launching or evaluating; (b) the first servers of a wave were stepping
+while the other nine loaded maps, got starved past the 5 s read timeout and lost their episodes; the fleet now waits
+for the whole wave to reach pre-game before the first step, and the read timeout is 15 s. `runs/sp_v2` continues
+from the fourth sp_v1 checkpoint (three clean iterations) with all guards.
