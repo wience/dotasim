@@ -30,10 +30,13 @@ def test_labels_on_recorded_episode():
 
     steps = load_episode(sorted(DATA.glob("ep*_t2.npz"))[0])
     n = {"attack_named": 0, "attack": 0, "move_disp": 0, "move": 0, "cast": 0, "none": 0}
+    dirs = []
     for i, (ws, nxt) in enumerate(zip(steps[:-1], steps[1:])):
         f = featurize(ws, 2)
-        y = label(ws, nxt, f, 2, steps[min(i + 6, len(steps) - 1)])
-        me, me_next = ws.hero_of(2), nxt.hero_of(2)
+        far = steps[min(i + 6, len(steps) - 1)]
+        y = label(ws, nxt, f, 2, far)
+        me, me_next = ws.hero_of(2), far.hero_of(2)
+        dirs.append(y.move_dir if y.action_type == MOVE else None)
         if y.action_type == ATTACK:
             n["attack"] += 1
             tgt = f.unit_handles[y.target_idx]
@@ -44,12 +47,14 @@ def test_labels_on_recorded_episode():
         elif y.action_type == MOVE:
             n["move"] += 1
             assert 0 <= y.move_dir < 16 and 0 <= y.move_dist < 4
-            n["move_disp"] += ((me_next.x - me.x) ** 2 + (me_next.y - me.y) ** 2) ** 0.5 > 20
+            n["move_disp"] += 100 <= ((me_next.x - me.x) ** 2 + (me_next.y - me.y) ** 2) ** 0.5 <= 1500
         elif y.action_type >= CAST_BASE:
             n["cast"] += 1
         else:
             n["none"] += 1
             assert y.target_idx == -1 and y.move_dir == -1
     assert n["attack"] > 50 and n["attack_named"] / n["attack"] > 0.95, n
-    assert n["move"] > 200 and n["move_disp"] / n["move"] > 0.8, n
+    assert n["move"] > 200 and n["move_disp"] == n["move"], n
     assert n["cast"] >= 5, n
+    pairs = [(a, b) for a, b in zip(dirs[:-1], dirs[1:]) if a is not None and b is not None]
+    assert sum(a == b for a, b in pairs) / len(pairs) > 0.7, "move direction labels should mostly persist step to step"

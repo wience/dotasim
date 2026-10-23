@@ -1,4 +1,6 @@
-"""Behavioral cloning: masked cross-entropy per head over windows of consecutive steps (truncated BPTT)."""
+"""Behavioral cloning: masked cross-entropy per head over windows of consecutive steps (truncated BPTT), with the GRU
+state carried across the windows of an episode so training sees the states serving sees (bc_v1 restarted from zero
+every 32 steps and served thousands of steps from one state)."""
 from __future__ import annotations
 
 import argparse
@@ -6,8 +8,8 @@ import json
 import time
 from pathlib import Path
 
+import numpy as np
 import torch
-from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 
 from dotasim.model.labels import ATTACK, MOVE
@@ -26,9 +28,11 @@ def _gather(lp: torch.Tensor, y: torch.Tensor, valid: torch.Tensor) -> torch.Ten
     return -picked.mean()
 
 
-def window_losses(net: Policy, batch: dict[str, torch.Tensor]) -> tuple[dict[str, torch.Tensor], dict[str, float]]:
+def window_losses(net: Policy, batch: dict[str, torch.Tensor], h: torch.Tensor | None = None
+                  ) -> tuple[dict[str, torch.Tensor], dict[str, float], torch.Tensor]:
     B, T = batch["y_type"].shape
-    h = net.initial_state(B)
+    if h is None:
+        h = net.initial_state(B)
     tot = {"type": 0.0, "dir": 0.0, "dist": 0.0, "target": 0.0}
     correct_type = correct_target = n_target = 0
     for t in range(T):
@@ -46,16 +50,17 @@ def window_losses(net: Policy, batch: dict[str, torch.Tensor]) -> tuple[dict[str
             n_target += int(is_attack.sum())
     losses = {k: v / T for k, v in tot.items()}
     stats = {"acc_type": correct_type / (B * T), "acc_target": correct_target / max(n_target, 1), "n_target": n_target}
-    return losses, stats
+    return losses, stats, h
 
 
-def evaluate(net: Policy, loader: DataLoader) -> tuple[float, float]:
-    """Type and target accuracy over every window in the loader (teacher-forced, no grad)."""
+def evaluate(net: Policy, ds: EpisodeWindows, batch: int) -> tuple[float, float]:
+    """Type and target accuracy over every window of every episode (teacher-forced, state carried, no grad)."""
     ct = ca = nt = na = 0
+    h = None
     with torch.inference_mode():
-        for b in loader:
+        for b, first in ds.streams(batch):
             B, T = b["y_type"].shape
-            _, st = window_losses(net, b)
+            _, st, h = window_losses(net, b, None if first else h)
             ct += st["acc_type"] * B * T
             nt += B * T
             ca += st["acc_target"] * st["n_target"]
@@ -63,14 +68,15 @@ def evaluate(net: Policy, loader: DataLoader) -> tuple[float, float]:
     return ct / max(nt, 1), ca / max(na, 1)
 
 
-def train(data: Path, out: Path, epochs: int = 20, batch: int = 32, lr: float = 3e-4, max_episodes: int | None = None,
+def train(data: Path, out: Path, epochs: int = 8, batch: int = 16, lr: float = 3e-4, max_episodes: int | None = None,
           log_every: int = 20, threads: int = 8) -> dict:
+    """batch = episodes trained as parallel streams (16 of 46 gives 3 groups and about 370 updates per epoch)."""
     torch.set_num_threads(threads)
     out = Path(out)
     out.mkdir(parents=True, exist_ok=True)
     ds = EpisodeWindows(Path(data), max_episodes=max_episodes)
     stats = ds.label_stats()
-    loader = DataLoader(ds, batch_size=batch, shuffle=True, drop_last=False)
+    rng = np.random.default_rng(0)
     net = Policy()
     opt = torch.optim.Adam(net.parameters(), lr=lr)
     writer = SummaryWriter(str(out / "tb"))
@@ -78,8 +84,10 @@ def train(data: Path, out: Path, epochs: int = 20, batch: int = 32, lr: float = 
     config = {"epochs": epochs, "batch": batch, "lr": lr, "window": ds.window, "frames": ds.frames, "episodes": len(ds.episodes)}
     acc_type = acc_target = 0.0
     for epoch in range(epochs):
-        for b in loader:
-            losses, st = window_losses(net, b)
+        h = None
+        for b, start in ds.streams(batch, rng):
+            losses, st, h = window_losses(net, b, None if start else h)
+            h = h.detach()
             loss = losses["type"] + losses["dir"] + losses["dist"] + losses["target"]
             opt.zero_grad()
             loss.backward()
@@ -99,7 +107,7 @@ def train(data: Path, out: Path, epochs: int = 20, batch: int = 32, lr: float = 
                     "config": config, "epoch": epoch + 1}, out / "policy.pt")
         print(json.dumps({"epoch": epoch + 1, "loss_type": round(float(losses["type"]), 4), "acc_type": round(acc_type, 3),
                           "acc_target": round(acc_target, 3), "wall_s": round(time.time() - t0)}), flush=True)
-    acc_type, acc_target = evaluate(net, loader)
+    acc_type, acc_target = evaluate(net, ds, batch)
     writer.add_scalar("acc/type_full", acc_type, step)
     writer.add_scalar("acc/target_full", acc_target, step)
     writer.close()
@@ -114,8 +122,8 @@ def main(argv=None):
     p = argparse.ArgumentParser(description="Behavioral cloning from recorded Valve games.")
     p.add_argument("--data", default="data/sf_mirror_v1")
     p.add_argument("--out", default="runs/bc_v1")
-    p.add_argument("--epochs", type=int, default=20)
-    p.add_argument("--batch", type=int, default=32)
+    p.add_argument("--epochs", type=int, default=8)
+    p.add_argument("--batch", type=int, default=16, help="episodes per group of parallel streams")
     p.add_argument("--lr", type=float, default=3e-4)
     p.add_argument("--max-episodes", type=int, default=None)
     a = p.parse_args(argv)

@@ -64,11 +64,11 @@ python -m dotasim.data.record --games 24 --instances 8 --frames 5 --difficulty 4
 ```
 
 ```bash
-python -m dotasim.train.bc --data data/sf_mirror_v1 --epochs 12 --batch 32 --out runs/bc_v1
+python -m dotasim.train.bc --data data/sf_mirror_v1 --epochs 8 --batch 16 --out runs/bc_v2
 ```
 
 ```bash
-python -m dotasim.eval.eval --checkpoint runs/bc_v1/policy.pt --games 3 --instances 3 --difficulty 0 --cap 300
+python -m dotasim.eval.eval --checkpoint runs/bc_v2/policy.pt --games 3 --instances 3 --difficulty 0 --cap 300
 ```
 
 TensorBoard: `tensorboard --logdir runs` then http://localhost:6006.
@@ -76,7 +76,7 @@ TensorBoard: `tensorboard --logdir runs` then http://localhost:6006.
 ## Phase 3: self-play
 
 ```bash
-python -m dotasim.train.selfplay --init runs/bc_v1/policy.pt --instances 12 --iterations 150 --out runs/sp_v1 --eval-every 10
+python -m dotasim.train.selfplay --init runs/bc_v2/policy.pt --instances 12 --iterations 150 --cap 300 --out runs/sp_v5 --eval-every 5
 ```
 
 Each iteration plays one episode per server (league: 70% self, 20% past checkpoint, 10% Valve unfair),

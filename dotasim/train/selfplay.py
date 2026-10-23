@@ -9,6 +9,7 @@ import traceback
 from dataclasses import dataclass, field
 from pathlib import Path
 
+import numpy as np
 import torch
 from torch.utils.tensorboard import SummaryWriter
 
@@ -184,6 +185,12 @@ async def train_selfplay(cfg: SelfPlayConfig) -> dict:
                 "episodes": totals["episodes"], "failed": totals.get("failed", 0), "lua_timeouts": totals["lua_timeouts"],
                 "errors": len(totals["errors"]), "error_samples": totals["errors"][:3], "speed_x": totals["speed_x_mean"], "act_ms": totals["act_ms_mean"],
                 "outcomes": outcomes, "wall_s": round(time.time() - t0, 1), **stats}
+        fin = [t for t in buf.finished if not t.error and t.steps]
+        if fin:   # does the agent lane more over iterations? (shaping telescopes, so the return is about the end potential)
+            line["mean_return"] = round(float(np.mean([sum(s.reward for s in t.steps) for t in fin])), 4)
+            line["mean_last_hits"] = round(float(np.mean([t.steps[-1].hero[4] * 100 for t in fin])), 2)
+            writer.add_scalar("train/mean_return", line["mean_return"], it + 1)
+            writer.add_scalar("train/mean_last_hits", line["mean_last_hits"], it + 1)
         for k in ("loss_pi", "loss_v", "entropy", "kl_anchor", "clipfrac", "approx_kl"):
             if k in stats:
                 writer.add_scalar(f"train/{k}", stats[k], it + 1)

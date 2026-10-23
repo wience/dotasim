@@ -151,3 +151,17 @@ latest: `runs/sp_v4/policy.pt`.
 
 Phase 3 exit (50% vs unfair) not met; the loop is correct and measured, the agent has had about 25 clean minutes of
 self-play in total. Resume with `--init runs/sp_v4/pool/it0005.pt` on an idle machine.
+
+## 2026-10-23 Phase 2 retry: bc_v2 (lookahead labels, stateful BC)
+
+Two changes against the live failure of bc_v1, both from the phase 2 diagnosis and the review's train/serve skew point:
+
+- Move labels now take direction and distance from the displacement 6 steps (1 s) ahead; below 100 units is "none",
+  above 1500 (respawn, teleport) is "none". Measured on one episode the gain is small: consecutive move steps share a
+  direction bin 77% of the time versus 75% with single-step labels, and the move share drops from 71% to 58% (idle
+  jitter stops counting as walking). So the "noisy labels" half of the diagnosis was overstated.
+- The trainer carries the GRU state across an episode's windows (episodes as 16 parallel streams, state detached
+  between 32-step windows). bc_v1 trained every window from the zero state and then served thousands of steps from one
+  carried state; the states it saw live were ones it had never been trained on. This is the stronger candidate.
+
+Feature cache: `data/sf_mirror_v1/cache_f5_v2` (label version in the name).
