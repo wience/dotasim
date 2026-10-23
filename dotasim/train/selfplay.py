@@ -107,10 +107,11 @@ class _Collector:
 async def run_iteration(cfg: SelfPlayConfig, live: NetPolicy, league: League, version: int, it: int,
                         trace: list | None = None, instances: int | None = None):
     n = instances or cfg.instances
-    kinds: dict[int, str] = {}
-    opponents: dict[int, NetPolicy | None] = {}
-    for i in range(n):
-        kinds[i], opponents[i] = league.sample()
+    # One matchup kind per wave: bots/config.lua is shared by every server, so mixing kinds in a wave gives the
+    # later-launched servers the wrong roles (a team controlled in Lua that Python never feeds stalls its game).
+    kind, opponent = league.sample()
+    kinds: dict[int, str] = {i: kind for i in range(n)}
+    opponents: dict[int, NetPolicy | None] = {i: opponent for i in range(n)}
 
     def matchup_for_env(i: int) -> Matchup:
         roles = {0: "controlled", 5: "valve" if kinds[i] == "valve" else "controlled"}
