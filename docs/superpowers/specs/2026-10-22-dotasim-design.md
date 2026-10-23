@@ -177,3 +177,12 @@ Three kinds only:
 - Dota 2 is not deterministic; experiments compare distributions, not single games.
 - SourceTV auto-recording is on for every instance (about 8 MB per 10-minute game). Phase 3 adds a retention policy (keep eval and notable games, delete the rest) before thousand-episode runs.
 - Live spectating of a WSL2 server from the Windows client was rejected by the game (no lobby; TV relay password) in phase 1. The status-page minimap is the live view; replays cover the writeup.
+
+## Amendments from phases 2 and 3 (2026-10-23)
+
+- Hero stats come from an observer filler per team (console lines), not the worldstate; xp is not available.
+- With two controlled teams the server emits team 3's worldstate only after team 2's Lua has its action; `DotaEnv.step` returns whichever team's state arrives next and the fleet alternates decisions per team (batched across servers per policy).
+- One league matchup kind per wave: `bots/config.lua` is shared by all servers of an install.
+- Servers of consecutive waves must not overlap: an exiting server writes into the next one's console log, and twelve map loads starve a running server past a short read timeout. The loop waits for exits, launches a whole wave before the first step, and reads with a 15 s timeout.
+- The replay pruner never deletes a demo modified in the last 10 minutes.
+- Rollout inference uses 4 torch threads; 8 threads next to 12 servers spin-wait and slow decisions 30x.

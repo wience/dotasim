@@ -136,3 +136,18 @@ cause was mixing kinds within a wave: every server's reset rewrites the shared `
 after a "valve" reset got a team 3 controlled in Lua that Python never fed, and those games stalled. The spec said one
 kind per wave; the loop now samples one league kind per iteration. `runs/sp_v4` continues from the seventh sp_v3
 checkpoint.
+
+## 2026-10-23 Phase 3 self-play: sp_v4 (stopped at the user's request)
+
+`runs/sp_v4`, 12 servers, 300 s episodes, one league kind per wave, continuing from sp_v3. Iterations 1 to 5 are the
+first fully healthy self-play iterations of the project: 26,700 to 36,000 steps each, all 24 trajectories, 3.7 to
+4.2x per server, 16 to 23 ms per batched decision, 31 to 52 Lua timeouts per iteration (about 0.1%), zero errors.
+Value loss fell from 0.0061 to 0.0041, KL to the anchor rose from 0.017 to 0.042, entropy 0.35 to 0.39. Every game
+was a draw: in 5-minute episodes two Shadow Fiend clones that barely lane do not kill each other or a tower.
+Iterations 6 to 9 ran while a game (Deadlock) was played on the same machine: decisions took 350 to 935 ms, Lua
+timeouts jumped and the game clock fell to 0.1x; those updates are on little data. The run was stopped at iteration 9.
+No evaluation was reached (first scheduled at iteration 10). Best clean checkpoint: `runs/sp_v4/pool/it0005.pt`;
+latest: `runs/sp_v4/policy.pt`.
+
+Phase 3 exit (50% vs unfair) not met; the loop is correct and measured, the agent has had about 25 clean minutes of
+self-play in total. Resume with `--init runs/sp_v4/pool/it0005.pt` on an idle machine.

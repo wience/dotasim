@@ -7,7 +7,7 @@ real time; a Python harness drives it in lockstep through Valve's bot scripting 
 Design: `docs/superpowers/specs/2026-10-22-dotasim-design.md`. Current phase plan: `docs/plans/`.
 Experiment log: `docs/experiments.md`. Spike notes: `docs/2026-10-22-spike-headless-harness.md`.
 
-Phase 1 (done): harness and fleet page. 12 headless servers in WSL2 at 10x real time, 0 lockstep
+Phase 1 (done): harness and fleet page. Phase 2 (built; imitation exit not met) and phase 3 (self-play loop built and tested; training barely started) are on `main` too; see `docs/experiments.md` for the honest numbers. 12 headless servers in WSL2 at 10x real time, 0 lockstep
 timeouts, about 62x real time aggregate with replay recording on (72x without), 1 GB and half a
 core per server.
 
