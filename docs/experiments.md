@@ -129,3 +129,10 @@ one per episode, so from the fourth iteration each launch deleted the oldest dem
 launched seconds earlier in the same wave were still writing, and the server ends a game whose recording vanishes. Those
 iterations showed about 2,000 steps, no errors and games "ending" in pre-game. The pruner now leaves any demo modified
 in the last ten minutes alone. `runs/sp_v3` continues from the sixth sp_v2 checkpoint.
+
+Correction: the iteration-4/5/7 collapses were not the pruner (the fix above is still right, but `runs/sp_v3` collapsed
+at the same iterations with it). The league's seeded sampler assigns the same matchup kinds every run, and the real
+cause was mixing kinds within a wave: every server's reset rewrites the shared `bots/config.lua`, so servers launched
+after a "valve" reset got a team 3 controlled in Lua that Python never fed, and those games stalled. The spec said one
+kind per wave; the loop now samples one league kind per iteration. `runs/sp_v4` continues from the seventh sp_v3
+checkpoint.
