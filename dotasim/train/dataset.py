@@ -51,7 +51,7 @@ class EpisodeWindows(Dataset):
         if max_episodes:
             files = files[:max_episodes]
         cache_dir = self.data_dir / f"cache_f{self.frames}_v{LABELS_VERSION}"
-        self.episodes = [np.load(build_cache(f, cache_dir)) for f in files]
+        self.episodes = [dict(np.load(build_cache(f, cache_dir))) for f in files]   # in RAM: lazy npz reads re-read whole arrays per window
         self.window = window
         self.index = [(e, s) for e, ep in enumerate(self.episodes) for s in range(0, len(ep["y_type"]) - window + 1, window)]
 

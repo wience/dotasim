@@ -96,7 +96,7 @@ def train(data: Path, out: Path, epochs: int = 8, batch: int = 16, lr: float = 3
             step += 1
             acc_type, acc_target = st["acc_type"], st["acc_target"]
             if first is None:
-                first = float(losses["type"])
+                first = float(losses["type"].detach())
             if step % log_every == 0:
                 for k, v in losses.items():
                     writer.add_scalar(f"loss/{k}", float(v), step)
