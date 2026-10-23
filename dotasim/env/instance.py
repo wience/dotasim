@@ -91,12 +91,18 @@ def _port_in_use(port: int, kind: int = socket.SOCK_STREAM) -> bool:
             return True
 
 
-def _prune_replays(replays: Path, keep: int) -> None:
-    """SourceTV writes about 8 MB per 10-minute game; keep only the newest `keep` demos."""
+def _prune_replays(replays: Path, keep: int, min_age_s: float = 600.0) -> None:
+    """SourceTV writes about 8 MB per 10-minute game; keep the newest `keep` demos.
+
+    Never touch a demo modified in the last min_age_s: a server launched seconds earlier in the same wave is still
+    recording into it, and deleting a live recording ends that server's game.
+    """
     try:
+        now = time.time()
         demos = sorted(replays.glob("*.dem"), key=lambda p: p.stat().st_mtime)
         for p in demos[:-keep] if keep else demos:
-            p.unlink()
+            if now - p.stat().st_mtime > min_age_s:
+                p.unlink()
     except OSError:
         pass
 
