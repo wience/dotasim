@@ -123,3 +123,9 @@ waits for every old server to exit before launching or evaluating; (b) the first
 while the other nine loaded maps, got starved past the 5 s read timeout and lost their episodes; the fleet now waits
 for the whole wave to reach pre-game before the first step, and the read timeout is 15 s. `runs/sp_v2` continues
 from the fourth sp_v1 checkpoint (three clean iterations) with all guards.
+
+And a third (`runs/sp_v2`, iterations 4 and 5): the replay pruner kept the newest 30 demos, twelve servers write
+one per episode, so from the fourth iteration each launch deleted the oldest demos, among them recordings that servers
+launched seconds earlier in the same wave were still writing, and the server ends a game whose recording vanishes. Those
+iterations showed about 2,000 steps, no errors and games "ending" in pre-game. The pruner now leaves any demo modified
+in the last ten minutes alone. `runs/sp_v3` continues from the sixth sp_v2 checkpoint.
