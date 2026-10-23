@@ -92,6 +92,7 @@ class SyncFleet:
                 self._start_reset(i, i * self.stagger_s)
                 started += 1
         steps_in_ep = {i: 0 for i in range(len(self.envs))}
+        first_wave = set(range(min(len(self.envs), episodes_total)))
         last_hb = 0.0
         speeds: list[float] = []
         try:
@@ -115,9 +116,12 @@ class SyncFleet:
                                 self.failed += 1                    # give this episode up
                                 self.envs[i].phase, self.envs[i].last_error = "dead", str(e)
                 playing = [i for i in self.obs if i not in self.resets]
-                if not playing:
+                # barrier: nobody plays until the whole first wave has launched; a server stepping while eleven
+                # others load maps gets starved past the read timeout and loses its episode
+                if not playing or (first_wave and any(i in self.resets for i in first_wave)):
                     await asyncio.sleep(0.2)
                     continue
+                first_wave = set()
                 # 2. batched decisions for the teams awaiting one, grouped by policy object
                 groups: dict[int, list[tuple[int, int, WorldState]]] = {}
                 pol_by_id: dict[int, object] = {}

@@ -12,7 +12,7 @@ from dotasim.env.instance import Instance, InstanceConfig, InstanceError
 from dotasim.env.worldstate import WorldState, parse, summary
 
 PRE_GAME, GAME_IN_PROGRESS, POST_GAME = 4, 5, 6
-STEP_TIMEOUT_S = 5.0      # wall time to wait for the next worldstate before declaring the instance dead
+STEP_TIMEOUT_S = 15.0     # wall time to wait for the next worldstate before declaring the instance dead (12 servers launching at once can stall a running one for seconds)
 CONNECT_TIMEOUT_S = 120.0  # wall time for the first worldstate after launch (map load + socket open)
 TICKS_PER_S = 30
 
