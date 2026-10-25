@@ -261,3 +261,10 @@ network (`--device cuda` copies weights to the learner before the update and bac
 Also today: the evaluator plays half its games on each side (verified: one game as Radiant, one as Dire, stats
 collected for both), and the league alternates the live side against pool and Valve opponents. Launching without
 filler bots is a dead end (the server idles with zero players).
+
+Cold-WSL waves, explained: the two early-ending first waves (sp_v5's first launch and sp_v9's) both came right after
+the WSL VM had restarted (it shuts down after a minute with no process, and the first launch boots it again with an
+empty page cache). Twelve servers then load the game from disk at once, the bots stall, the server marks them
+disconnected and quits "after game" while still in pre-game (end logs: `DOTA_LEAVER_DISCONNECTED`,
+`QuitServer called with reason: Terminating after game`). It heals by the third wave. The loop now skips the PPO
+update on any wave with fewer than 1,000 steps per server and logs it as a cold wave.
