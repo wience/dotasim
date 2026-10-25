@@ -1,6 +1,10 @@
-"""Push a compact live snapshot of a run to a GitHub gist every N seconds, for the hosted status page (web/).
-Usage (Windows or WSL, needs `gh` logged in): python scripts/publish_status.py runs/sp_v12 --gist <id> [--every 30]
-Create the gist once:  gh gist create --desc "dotasim live status" live.json   (a secret gist is fine)."""
+"""Publish a compact live snapshot of a run for the hosted status page (web/index.html).
+
+Default channel: an orphan branch `live` of this repository holding one file, live.json, rewritten in place
+(commit --amend + force push) every N seconds, so the branch never grows. The page reads it through the GitHub
+contents API. Usage (Windows or WSL, git must be able to push):
+    python scripts/publish_status.py runs/sp_v12 [--every 60] [--branch live]
+Alternative channel: a gist, `--gist <id>` (needs `gh` logged in)."""
 import argparse
 import json
 import subprocess
@@ -9,6 +13,7 @@ from pathlib import Path
 
 KEEP = ("iteration", "skipped", "steps", "ends", "outcomes", "mean_last_hits", "mean_return", "kl_anchor", "entropy",
         "act_ms", "speed_x", "update_wall_s", "wall_s", "eval", "error")
+REPO = Path(__file__).resolve().parents[1]
 
 
 def snapshot(run: Path) -> dict:
@@ -30,20 +35,52 @@ def snapshot(run: Path) -> dict:
     return out
 
 
+def git(*args, cwd: Path) -> subprocess.CompletedProcess:
+    return subprocess.run(["git", *args], cwd=cwd, capture_output=True, text=True)
+
+
+def branch_worktree(branch: str) -> Path:
+    """A worktree on the orphan branch, created on first use (runs/ is gitignored)."""
+    wt = REPO / "runs" / f"publish_{branch}"
+    if not (wt / ".git").exists():
+        git("worktree", "prune", cwd=REPO)
+        if git("rev-parse", "--verify", f"refs/heads/{branch}", cwd=REPO).returncode != 0:
+            git("fetch", "origin", branch, cwd=REPO)
+            if git("rev-parse", "--verify", f"refs/remotes/origin/{branch}", cwd=REPO).returncode == 0:
+                git("branch", branch, f"origin/{branch}", cwd=REPO)
+        if git("rev-parse", "--verify", f"refs/heads/{branch}", cwd=REPO).returncode == 0:
+            r = git("worktree", "add", str(wt), branch, cwd=REPO)
+        else:
+            r = git("worktree", "add", "--detach", str(wt), cwd=REPO)
+            git("checkout", "--orphan", branch, cwd=wt)
+            git("rm", "-rfq", ".", cwd=wt)
+        if r.returncode != 0:
+            raise SystemExit(f"git worktree add failed: {r.stderr}")
+    return wt
+
+
 def main():
     p = argparse.ArgumentParser()
     p.add_argument("run")
-    p.add_argument("--gist", required=True)
-    p.add_argument("--every", type=float, default=30)
+    p.add_argument("--every", type=float, default=60)
+    p.add_argument("--branch", default="live")
+    p.add_argument("--gist", default=None)
     a = p.parse_args()
     run = Path(a.run)
-    tmp = Path("live.json")
+    wt = None if a.gist else branch_worktree(a.branch)
     while True:
         snap = snapshot(run)
-        tmp.write_text(json.dumps(snap))
-        r = subprocess.run(["gh", "gist", "edit", a.gist, "-f", "live.json", str(tmp)], capture_output=True, text=True)
+        if a.gist:
+            Path("live.json").write_text(json.dumps(snap))
+            r = subprocess.run(["gh", "gist", "edit", a.gist, "-f", "live.json", "live.json"], capture_output=True, text=True)
+        else:
+            (wt / "live.json").write_text(json.dumps(snap))
+            git("add", "live.json", cwd=wt)
+            has_commit = git("rev-parse", "--verify", "HEAD", cwd=wt).returncode == 0
+            git("commit", "-q", *(["--amend"] if has_commit else []), "-m", f"live {snap['published']}", cwd=wt)
+            r = git("push", "-q", "-f", "origin", f"HEAD:refs/heads/{a.branch}", cwd=wt)
         n = len(snap["iterations"])
-        print(time.strftime("%H:%M:%S"), "pushed" if r.returncode == 0 else f"gh failed: {r.stderr.strip()[:120]}",
+        print(time.strftime("%H:%M:%S"), "pushed" if r.returncode == 0 else f"push failed: {r.stderr.strip()[:160]}",
               f"iterations={n}", f"last={snap['iterations'][-1].get('iteration') if n else None}", flush=True)
         time.sleep(a.every)
 

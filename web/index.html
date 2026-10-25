@@ -50,21 +50,28 @@
 <script>
 const $ = (id) => document.getElementById(id);
 const params = new URLSearchParams(location.search);
-const GIST = params.get("gist") || localStorage.getItem("dotasim_gist") || "GIST_ID";
-if (params.get("gist")) localStorage.setItem("dotasim_gist", params.get("gist"));
+// Live data: live.json on the `live` branch of the public repo, rewritten every minute by scripts/publish_status.py.
+const SRC = params.get("src") || "https://api.github.com/repos/wience/dotasim/contents/live.json?ref=live";
+const RAW = "https://raw.githubusercontent.com/wience/dotasim/live/live.json";
 const mmss = (t) => { const s = Math.max(0, Math.round(t || 0)); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`; };
 const ago = (iso) => { if (!iso) return "?"; const s = (Date.now() - Date.parse(iso)) / 1000; return s < 90 ? `${Math.round(s)} s ago` : s < 5400 ? `${Math.round(s / 60)} min ago` : `${(s / 3600).toFixed(1)} h ago`; };
 const pct = (x) => x == null ? "–" : Math.round(x * 100) + "%";
 
 async function load() {
   try {
-    const r = await fetch(`https://api.github.com/gists/${GIST}?t=${Date.now()}`, { headers: { Accept: "application/vnd.github+json" } });
-    if (!r.ok) throw new Error(`gist ${GIST}: HTTP ${r.status}`);
-    const g = await r.json();
-    const d = JSON.parse(g.files["live.json"].content);
+    let d;
+    const r = await fetch(`${SRC}${SRC.includes("?") ? "&" : "?"}t=${Date.now()}`, { headers: { Accept: "application/vnd.github+json" } });
+    if (r.ok) {
+      const g = await r.json();
+      d = g.content ? JSON.parse(decodeURIComponent(escape(atob(g.content.replace(/\n/g, ""))))) : g;
+    } else {
+      const r2 = await fetch(`${RAW}?t=${Date.now()}`, { cache: "no-store" });   // API rate limited: fall back to the CDN copy (a few minutes stale)
+      if (!r2.ok) throw new Error(`HTTP ${r.status} / ${r2.status}`);
+      d = await r2.json();
+    }
     render(d);
     $("err").textContent = "";
-  } catch (e) { $("err").textContent = "cannot load live data: " + e.message + (GIST === "GIST_ID" ? "\nopen this page with ?gist=<id> once; it is remembered." : ""); }
+  } catch (e) { $("err").textContent = "cannot load live data: " + e.message; }
 }
 
 function render(d) {
@@ -123,7 +130,7 @@ function chart(its) {
   line(its.filter((i) => i.eval), (i) => i.eval.last_hits_unfair, "#e55");
 }
 load();
-setInterval(load, 30000);
+setInterval(load, 60000);
 </script>
 </body>
 </html>
