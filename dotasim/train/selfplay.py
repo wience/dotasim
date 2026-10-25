@@ -90,7 +90,7 @@ class _Collector:
             return
         err = "error" in info
         newest = max((ws for (e, _), ws in self.last_ws.items() if e == i), key=lambda w: w.dota_time, default=None)
-        w = winner(newest) if (newest is not None and info.get("post_game")) else None
+        w = info.get("winner") or (winner(newest) if (newest is not None and info.get("post_game")) else None)
         capped = bool(info.get("capped")) and not err
         for team in live_teams:
             if (i, team) in self.pending and newest is not None:

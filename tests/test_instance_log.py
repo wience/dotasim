@@ -50,3 +50,17 @@ def test_split_post_game_line_is_seen(tmp_path):
         f.write("ST_GAME'\n")
     inst.console_tail()
     assert inst.post_game_seen is True
+
+
+def test_fort_line_names_the_winner(tmp_path):
+    inst = _instance(tmp_path)
+    with open(inst.cfg.console_log, "a") as f:
+        f.write("10/25 11:50:34 Building: npc_dota_badguys_fort destroyed at 211.966675.\n")   # before our bots: ignored
+    inst.console_tail()
+    assert inst.winner is None
+    with open(inst.cfg.console_log, "a") as f:
+        f.write("10/25 11:50:40 [VScript] LUARDY token=abc team=2 pid=0 role=controlled\n")
+        f.write("10/25 11:55:55 Building: npc_dota_goodguys_fort destroyed at 190.433350.\n")
+        f.write("10/25 11:55:55 S:Gamerules: entering state 'DOTA_GAMERULES_STATE_POST_GAME'\n")
+    inst.console_tail()
+    assert inst.winner == 3 and inst.post_game_seen is True

@@ -39,9 +39,9 @@ def step_reward(prev: WorldState, cur: WorldState, team: int, gamma: float = GAM
 
 
 def winner(ws: WorldState) -> int | None:
-    """2, 3 or None (draw), for a game that has ended. On this build the 1v1 ends at the first hero death (measured:
-    every finished eval game had exactly one death), so the team with fewer deaths wins; kills alone miss deaths to
-    the tower. Fallback: the team whose enemy mid T1 is gone."""
+    """Fallback winner from the last worldstate, 2, 3 or None (draw). The engine ends a 1v1 by destroying the
+    loser's fort and the stream stops before that state arrives, so the console's fort line (Instance.winner) is the
+    primary source; this reads deaths (fewer wins) and then the mid T1 towers."""
     deaths = {2: 0, 3: 0}
     for pid, d in ws.player_deaths.items():
         t = 2 if pid < 5 else 3

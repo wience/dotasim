@@ -39,7 +39,7 @@ async def evaluate(checkpoint: Path | None, games: int, instances: int, difficul
             ws = last_obs.get(i, {}).get(2)
             me = ws.hero_of(2) if ws else None
             foe = env.instance.lua_ally().get(5, {})
-            w = winner(ws) if (ws is not None and info.get("post_game")) else None
+            w = info.get("winner") or (winner(ws) if (ws is not None and info.get("post_game")) else None)
             results.append({
                 "won": w == 2, "draw": w is None,
                 "instance": i, "game_time": round(info.get("game_time", 0.0), 1),

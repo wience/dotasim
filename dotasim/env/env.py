@@ -186,6 +186,7 @@ class DotaEnv:
             ws0 = next((tm.last for tm in self._teams.values() if tm.last is not None), None)
             ended = (ws0 is not None and ws0.game_state == POST_GAME) or self.instance.post_game_seen
             info["post_game"] = bool(ended)                 # the game itself ended (kills or tower)
+            info["winner"] = self.instance.winner           # from the console's fort line; the stream ends before the final state
             info["capped"] = not ended                       # we stopped it at cap_s
         return obs, done, info
 

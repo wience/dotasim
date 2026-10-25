@@ -204,3 +204,11 @@ Relaunch with the fix: iteration 1 44,418 steps, 26 ms decisions, ends 6 by deat
 9 draws 0 losses from team 2's view; iteration 2 similar (7 by death, 1 win). Open: half of the death-ended games
 still resolve as draws, so the last worldstate before the stream closes sometimes predates the death counter; the
 console log's kill line would be the reliable source.
+
+Correction, same day: "first death ends the game" was wrong. Captured console logs at the moment of POST_GAME show the
+engine ending the 1v1 by destroying the loser's fort (`Building: npc_dota_badguys_fort destroyed at 190.43`), at
+190 to 264 s, sometimes with the kill counts still 1-1 in the last worldstate the stream delivered: the stream stops
+before the final state, so any winner read from the worldstate is unreliable. The console line is now the winner
+source (`Instance.winner`, `info["winner"]`), with the worldstate rule as a fallback. sp_v6 (one iteration, draws
+again) discarded; sp_v7 restarted from bc_v2. Every finished episode's console tail is kept under
+`runs/<run>/run/end_logs/` from now on.

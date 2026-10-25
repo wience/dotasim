@@ -16,6 +16,7 @@ from typing import AsyncIterator
 import psutil
 
 LUARDY = re.compile(r"LUARDY token=(\w+) team=(\d) pid=(\d+) role=(\w+)")
+FORT = re.compile(r"Building: npc_dota_(goodguys|badguys)_fort destroyed")   # how a 1v1 ends: the engine razes the loser's fort
 LUASTAT = re.compile(r"LUASTAT token=(\w+) waits=(\d+) exec=(\d+) timeouts=(\d+) mismatch=(\d+)")
 LUAOBS = re.compile(r"LUAOBS token=(\w+) idx=(\d+) lh=(-?\d+) dn=(-?\d+) gold=(-?\d+) xp=(-?\d+) lvl=(-?\d+) to=(\d+) mm=(\d+)")
 LUAERR = re.compile(r"LUAERR token=(\w+) (.*)")
@@ -127,6 +128,7 @@ class Instance:
         self.lua = _LuaState()
         self._out = None
         self.post_game_seen = False
+        self.winner: int | None = None   # 2 or 3 once the console says whose fort fell
 
     # ---- lifecycle -------------------------------------------------------
     async def launch(self) -> None:
@@ -143,6 +145,7 @@ class Instance:
         self._tail.clear()
         self.lua = _LuaState()
         self.post_game_seen = False
+        self.winner: int | None = None   # 2 or 3 once the console says whose fort fell
         self.cfg.run_dir.mkdir(parents=True, exist_ok=True)
         self._out = open(self.cfg.run_dir / f"instance_{self.cfg.index}.out", "ab")
         env = dict(os.environ, LD_LIBRARY_PATH=str(self.cfg.game_dir / "bin" / "linuxsteamrt64"), ENABLE_PATHMATCH="1")
@@ -210,6 +213,8 @@ class Instance:
             if "DOTA_GAMERULES_STATE_POST_GAME" in line and self.lua.tokens:
                 # only after our own bots reported in: a previous server exiting can still write into this file
                 self.post_game_seen = True
+            if self.lua.tokens and (fm := FORT.search(line)):
+                self.winner = 2 if fm.group(1) == "badguys" else 3
             if m := LUARDY.search(line):
                 token, team, pid, role = m.group(1), int(m.group(2)), int(m.group(3)), m.group(4)
                 self.lua.roles[token] = role
