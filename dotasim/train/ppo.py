@@ -76,6 +76,7 @@ def evaluate_windows(net: Policy, batch: dict[str, torch.Tensor], anchor: Policy
 def ppo_update(net: Policy, anchor: Policy, windows: list[Window], cfg: PPOConfig, opt: torch.optim.Optimizer,
                version: int | None = None) -> dict:
     t0 = time.time()
+    dev = next(net.parameters()).device   # windows are collected on the CPU; the update runs wherever net lives (GPU learner)
     all_adv = torch.cat([w.adv[w.valid] for w in windows])
     mean, std = all_adv.mean(), all_adv.std().clamp(min=1e-6)
     stats = {"loss_pi": 0.0, "loss_v": 0.0, "entropy": 0.0, "kl_anchor": 0.0, "clipfrac": 0.0, "approx_kl": 0.0}
@@ -85,6 +86,8 @@ def ppo_update(net: Policy, anchor: Policy, windows: list[Window], cfg: PPOConfi
         random.shuffle(order)
         for i in range(0, len(order), cfg.minibatch):
             batch = Buffer.collate([windows[j] for j in order[i:i + cfg.minibatch]], expect_version=version)
+            if dev.type != "cpu":
+                batch = {k: v.to(dev, non_blocking=True) for k, v in batch.items()}
             valid = batch["valid"]
             adv = ((batch["adv"] - mean) / std)[valid]
             logp, ent, val, kl = evaluate_windows(net, batch, anchor)

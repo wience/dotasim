@@ -71,13 +71,14 @@ class InstanceConfig:
             "+sv_lan", "1", "+sv_cheats", "1", "+sv_hibernate_when_empty", "0",
             "+dota_bot_set_difficulty", str(self.difficulty),
             "-port", str(self.server_port),
-            "+map", "start", "gamemode", "21", "-fill_with_bots",
+            "+map", "start", "gamemode", "21", *([] if os.environ.get("DOTASIM_NO_FILL") else ["-fill_with_bots"]),
             "-botworldstatetosocket_radiant", str(self.ws_port(2)),
             "-botworldstatetosocket_dire", str(self.ws_port(3)),
             "-botworldstatetosocket_frames", str(self.frames), "-botworldstatesocket_threaded",
             "+dota_auto_surrender_all_disconnected_timeout", "180",
             # SourceTV: lets a real client spectate (connect <ip>:<tv_port>) and records replays
-            "+tv_enable", "1", "+tv_port", str(self.tv_port), "+tv_delay", "0", "+tv_autorecord", "1",
+            "+tv_enable", "0" if os.environ.get("DOTASIM_NO_TV") else "1", "+tv_port", str(self.tv_port), "+tv_delay", "0",
+            "+tv_autorecord", "0" if os.environ.get("DOTASIM_NO_TV") else "1",
             *self.extra_args,
         ]
 

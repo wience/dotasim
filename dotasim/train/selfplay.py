@@ -44,6 +44,7 @@ class SelfPlayConfig:
     timescale: float = 10
     dota_dir: Path | None = None
     ppo: PPOConfig = field(default_factory=PPOConfig)
+    device: str = "cpu"   # learner device ("cuda" also names ROCm); rollouts always run the CPU copy
 
 
 def _save(net: Policy, path: Path, frames: int, extra: dict) -> None:
@@ -151,10 +152,11 @@ async def train_selfplay(cfg: SelfPlayConfig) -> dict:
     cfg.out = Path(cfg.out)
     cfg.out.mkdir(parents=True, exist_ok=True)
     live = NetPolicy(cfg.init, greedy=False, threads=ROLLOUT_THREADS)   # 8 threads next to 12 servers spin-waits and 30x slower decisions
-    anchor = Policy()
+    learner = live.net if cfg.device == "cpu" else Policy().to(cfg.device)   # the update runs here; weights copied both ways around it
+    anchor = Policy().to(cfg.device)
     anchor.load_state_dict(live.net.state_dict())
     league = League(cfg.out / "pool", cfg.frames)
-    opt = torch.optim.Adam(live.net.parameters(), lr=cfg.ppo.lr)
+    opt = torch.optim.Adam(learner.parameters(), lr=cfg.ppo.lr)
     writer = SummaryWriter(str(cfg.out / "tb"))
     log = open(cfg.out / "log.jsonl", "a")
     version = 0
@@ -167,7 +169,11 @@ async def train_selfplay(cfg: SelfPlayConfig) -> dict:
             buf, totals, outcomes = await run_iteration(cfg, live, league, version, it)
             windows = buf.windows(cfg.ppo.gamma, cfg.ppo.lam)
             torch.set_num_threads(UPDATE_THREADS)
-            stats = ppo_update(live.net, anchor, windows, cfg.ppo, opt, version=version) if windows else {}
+            if learner is not live.net:
+                learner.load_state_dict(live.net.state_dict())
+            stats = ppo_update(learner, anchor, windows, cfg.ppo, opt, version=version) if windows else {}
+            if learner is not live.net:
+                live.net.load_state_dict({k: v.detach().cpu() for k, v in learner.state_dict().items()})
             torch.set_num_threads(ROLLOUT_THREADS)
         except Exception as e:  # noqa: BLE001 - one bad iteration must not end an unattended run
             line = {"iteration": it + 1, "error": f"{type(e).__name__}: {e}", "traceback": traceback.format_exc()[-2000:],
@@ -180,7 +186,7 @@ async def train_selfplay(cfg: SelfPlayConfig) -> dict:
         if cfg.pool_every and (it + 1) % cfg.pool_every == 0:
             league.add(cfg.out / "policy.pt", f"it{it + 1:04d}")
         if cfg.anchor_every and (it + 1) % cfg.anchor_every == 0:
-            anchor.load_state_dict(live.net.state_dict())
+            anchor.load_state_dict(live.net.state_dict())   # strict shapes; .to(device) happened at construction
         line = {"iteration": it + 1, "version": version, "steps": buf.steps(), "trajectories": len([t for t in buf.finished if not t.error]),
                 "episodes": totals["episodes"], "failed": totals.get("failed", 0), "lua_timeouts": totals["lua_timeouts"], "ends": totals.get("ends", {}),
                 "errors": len(totals["errors"]), "error_samples": totals["errors"][:3], "speed_x": totals["speed_x_mean"], "act_ms": totals["act_ms_mean"],
@@ -236,9 +242,10 @@ def main(argv=None):
     p.add_argument("--eval-games", type=int, default=6)
     p.add_argument("--epochs", type=int, default=2)
     p.add_argument("--lr", type=float, default=1e-4)
+    p.add_argument("--device", default="cpu", help="learner device: cpu, or cuda for a ROCm/CUDA GPU (rollouts stay on CPU)")
     a = p.parse_args(argv)
     cfg = SelfPlayConfig(init=Path(a.init), out=Path(a.out), instances=a.instances, iterations=a.iterations, cap_s=a.cap,
-                         eval_every=a.eval_every, eval_games=a.eval_games, ppo=PPOConfig(lr=a.lr, epochs=a.epochs))
+                         eval_every=a.eval_every, eval_games=a.eval_games, ppo=PPOConfig(lr=a.lr, epochs=a.epochs), device=a.device)
     print(json.dumps(asyncio.run(train_selfplay(cfg)), indent=1))
 
 
