@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>dotasim live</title>
+<style>
+  :root { color-scheme: dark; --bg: #111; --fg: #ddd; --mute: #888; --line: #2a2a2a; --ok: #5c5; --bad: #e55; --acc: #6af; }
+  body { margin: 0; padding: 16px; background: var(--bg); color: var(--fg); font: 14px/1.45 system-ui, -apple-system, Segoe UI, sans-serif; }
+  h1 { font-size: 18px; margin: 0 0 2px; font-weight: 600; }
+  h2 { font-size: 14px; margin: 20px 0 6px; color: var(--mute); font-weight: 500; text-transform: uppercase; letter-spacing: .04em; }
+  .sub { color: var(--mute); margin-bottom: 12px; }
+  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px; max-width: 1100px; }
+  .card { border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; }
+  .card .k { color: var(--mute); font-size: 12px; } .card .v { font-size: 22px; font-weight: 600; } .card .d { color: var(--mute); font-size: 12px; }
+  table { border-collapse: collapse; width: 100%; max-width: 1100px; }
+  th, td { text-align: left; padding: 4px 8px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+  th { color: var(--mute); font-weight: 500; }
+  tr.bad { border-left: 3px solid var(--bad); } tr.ev { background: #161a16; }
+  canvas { display: block; width: 100%; max-width: 1100px; height: 220px; border: 1px solid var(--line); border-radius: 8px; background: #0d0f0d; }
+  .legend { color: var(--mute); font-size: 12px; margin: 4px 0 0; }
+  .legend b { font-weight: 600; } .acc { color: var(--acc); } .ok { color: var(--ok); } .bad { color: var(--bad); }
+  #err { color: var(--bad); white-space: pre-wrap; }
+  .wrap { overflow-x: auto; }
+</style>
+</head>
+<body>
+<h1>dotasim live <span id="run" style="color:var(--mute);font-weight:400"></span></h1>
+<div class="sub" id="stamp">loading…</div>
+<div id="err"></div>
+
+<div class="cards" id="cards"></div>
+
+<h2>Learning curve</h2>
+<canvas id="chart" width="1100" height="220"></canvas>
+<div class="legend"><b class="acc">blue</b> last hits per self-play game (training) · <b class="ok">green</b> evaluation vs passive bots · <b class="bad">red</b> evaluation vs unfair bots · dashed grey: the clone's 4</div>
+
+<h2>Fleet right now</h2>
+<div class="wrap"><table>
+  <thead><tr><th>#</th><th>phase</th><th>game time</th><th>speed</th><th>kills R–D</th><th>last hits R / D</th><th>Lua timeouts</th><th>cpu%</th><th>error</th></tr></thead>
+  <tbody id="fleet"></tbody>
+</table></div>
+
+<h2>Iterations (newest first)</h2>
+<div class="wrap"><table>
+  <thead><tr><th>it</th><th>opponent</th><th>steps</th><th>ended by fort / cap</th><th>W–D–L</th><th>last hits</th><th>KL to anchor</th><th>update s</th><th>eval passive lh · draw</th><th>eval unfair lh · win · draw</th></tr></thead>
+  <tbody id="its"></tbody>
+</table></div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const params = new URLSearchParams(location.search);
+const GIST = params.get("gist") || localStorage.getItem("dotasim_gist") || "GIST_ID";
+if (params.get("gist")) localStorage.setItem("dotasim_gist", params.get("gist"));
+const mmss = (t) => { const s = Math.max(0, Math.round(t || 0)); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`; };
+const ago = (iso) => { if (!iso) return "?"; const s = (Date.now() - Date.parse(iso)) / 1000; return s < 90 ? `${Math.round(s)} s ago` : s < 5400 ? `${Math.round(s / 60)} min ago` : `${(s / 3600).toFixed(1)} h ago`; };
+const pct = (x) => x == null ? "–" : Math.round(x * 100) + "%";
+
+async function load() {
+  try {
+    const r = await fetch(`https://api.github.com/gists/${GIST}?t=${Date.now()}`, { headers: { Accept: "application/vnd.github+json" } });
+    if (!r.ok) throw new Error(`gist ${GIST}: HTTP ${r.status}`);
+    const g = await r.json();
+    const d = JSON.parse(g.files["live.json"].content);
+    render(d);
+    $("err").textContent = "";
+  } catch (e) { $("err").textContent = "cannot load live data: " + e.message + (GIST === "GIST_ID" ? "\nopen this page with ?gist=<id> once; it is remembered." : ""); }
+}
+
+function render(d) {
+  const its = d.iterations || [], st = d.status || {};
+  const last = its.length ? its[its.length - 1] : null;
+  const evals = its.filter((i) => i.eval);
+  const lastEval = evals.length ? evals[evals.length - 1] : null;
+  $("run").textContent = d.run || "";
+  $("stamp").textContent = `snapshot ${ago(d.published)} · fleet status ${st.updated ? ago(st.updated) : "–"} · ${its.length} iterations logged`;
+  const cards = [
+    ["iteration", last ? last.iteration : "–", last && last.skipped ? "last wave skipped (cold)" : ""],
+    ["self-play last hits / game", last && last.mean_last_hits != null ? last.mean_last_hits.toFixed(1) : "–", "clone: 4"],
+    ["eval vs passive", lastEval ? lastEval.eval.last_hits_passive : "–", lastEval ? `at it ${lastEval.iteration} · draws ${pct(lastEval.eval.draw_rate_passive)}` : "no eval yet"],
+    ["eval vs unfair", lastEval ? lastEval.eval.last_hits_unfair : "–", lastEval ? `wins ${pct(lastEval.eval.win_rate_unfair)} · draws ${pct(lastEval.eval.draw_rate_unfair)}` : ""],
+    ["KL to anchor", last && last.kl_anchor != null ? last.kl_anchor.toFixed(3) : "–", "drift from the clone"],
+    ["servers", st.instances ? `${st.instances.filter((i) => i.phase !== "dead").length}/${st.instances.length}` : "–", st.totals ? `${st.totals.lua_timeouts} Lua timeouts · ${st.totals.errors} errors` : ""],
+  ];
+  $("cards").innerHTML = cards.map(([k, v, d2]) => `<div class="card"><div class="k">${k}</div><div class="v">${v}</div><div class="d">${d2}</div></div>`).join("");
+
+  $("fleet").innerHTML = (st.instances || []).map((i) => `
+    <tr class="${i.phase === "dead" ? "bad" : ""}"><td>${i.index}</td><td>${i.phase}</td><td>${mmss(i.game_time)}</td><td>${i.speed_x ?? "–"}x</td>
+    <td>${(i.kills?.[2] ?? 0)}–${(i.kills?.[3] ?? 0)}</td><td>${(i.last_hits?.[2] ?? -1)} / ${(i.last_hits?.[3] ?? -1)}</td>
+    <td>${i.lua_timeouts ?? 0}</td><td>${Math.round(i.cpu ?? 0)}</td><td style="white-space:normal">${i.last_error || ""}</td></tr>`).join("") || "<tr><td colspan=9>no fleet status in the snapshot</td></tr>";
+
+  const kind = (o) => o ? (Object.entries(o).find(([, v]) => v.some((x) => x > 0)) || ["–"])[0] : "–";
+  const wdl = (o) => { const k = kind(o); return k === "–" ? "–" : o[k].join("–"); };
+  $("its").innerHTML = its.slice().reverse().map((i) => {
+    const e = i.eval || {};
+    return `<tr class="${i.eval ? "ev" : ""} ${i.error || i.skipped ? "bad" : ""}"><td>${i.iteration}</td><td>${i.skipped ? "skipped: " + i.skipped : kind(i.outcomes)}</td>
+      <td>${i.steps ?? "–"}</td><td>${(i.ends?.post_game_log ?? 0)} / ${(i.ends?.cap ?? 0)}</td><td>${wdl(i.outcomes)}</td>
+      <td>${i.mean_last_hits != null ? i.mean_last_hits.toFixed(1) : "–"}</td><td>${i.kl_anchor != null ? i.kl_anchor.toFixed(3) : "–"}</td><td>${i.update_wall_s ?? "–"}</td>
+      <td>${i.eval ? `${e.last_hits_passive} · ${pct(e.draw_rate_passive)}` : ""}</td><td>${i.eval ? `${e.last_hits_unfair} · ${pct(e.win_rate_unfair)} · ${pct(e.draw_rate_unfair)}` : ""}</td></tr>`;
+  }).join("");
+  chart(its);
+}
+
+function chart(its) {
+  const c = $("chart"), ctx = c.getContext("2d"), W = c.width, H = c.height, L = 36, R = 10, T = 10, B = 24;
+  ctx.clearRect(0, 0, W, H);
+  const pts = its.filter((i) => i.mean_last_hits != null);
+  if (!pts.length) return;
+  const maxIt = Math.max(...its.map((i) => i.iteration)), maxY = Math.max(12, ...pts.map((i) => i.mean_last_hits), ...its.filter((i) => i.eval).map((i) => Math.max(i.eval.last_hits_passive || 0, i.eval.last_hits_unfair || 0)));
+  const x = (it) => L + (it - 1) / Math.max(1, maxIt - 1) * (W - L - R), y = (v) => T + (1 - v / maxY) * (H - T - B);
+  ctx.strokeStyle = "#2a2a2a"; ctx.fillStyle = "#888"; ctx.font = "11px system-ui"; ctx.lineWidth = 1;
+  for (let v = 0; v <= maxY; v += maxY > 20 ? 5 : 2) { ctx.beginPath(); ctx.moveTo(L, y(v)); ctx.lineTo(W - R, y(v)); ctx.stroke(); ctx.fillText(v, 4, y(v) + 4); }
+  for (let it = 1; it <= maxIt; it += Math.max(1, Math.round(maxIt / 12))) ctx.fillText(it, x(it) - 3, H - 8);
+  ctx.setLineDash([4, 4]); ctx.strokeStyle = "#666"; ctx.beginPath(); ctx.moveTo(L, y(4)); ctx.lineTo(W - R, y(4)); ctx.stroke(); ctx.setLineDash([]);
+  const line = (rows, get, color) => {
+    ctx.strokeStyle = color; ctx.fillStyle = color; ctx.lineWidth = 2; ctx.beginPath(); let first = true;
+    for (const i of rows) { const v = get(i); if (v == null) continue; const X = x(i.iteration), Y = y(v); first ? ctx.moveTo(X, Y) : ctx.lineTo(X, Y); first = false; }
+    ctx.stroke();
+    for (const i of rows) { const v = get(i); if (v == null) continue; ctx.beginPath(); ctx.arc(x(i.iteration), y(v), 3, 0, 7); ctx.fill(); }
+  };
+  line(pts, (i) => i.mean_last_hits, "#6af");
+  line(its.filter((i) => i.eval), (i) => i.eval.last_hits_passive, "#5c5");
+  line(its.filter((i) => i.eval), (i) => i.eval.last_hits_unfair, "#e55");
+}
+load();
+setInterval(load, 30000);
+</script>
+</body>
+</html>

@@ -6,3 +6,4 @@ spike/*.txt
 .superpowers/
 *.egg-info/
 /data/
+live.json
