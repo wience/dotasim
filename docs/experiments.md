@@ -268,3 +268,10 @@ empty page cache). Twelve servers then load the game from disk at once, the bots
 disconnected and quits "after game" while still in pre-game (end logs: `DOTA_LEAVER_DISCONNECTED`,
 `QuitServer called with reason: Terminating after game`). It heals by the third wave. The loop now skips the PPO
 update on any wave with fewer than 1,000 steps per server and logs it as a cold wave.
+
+GPU learner, second finding: a process that has initialised ROCm burns about two cores while idle (190% of a core
+measured over 10 s, unchanged by HSA_ENABLE_INTERRUPT and the other usual knobs) and its own CPU inference slows from
+8 ms to 100 ms per 12-game batch. Running rollouts in that process starved the servers: both sp_v9 launches died in
+pre-game exactly like a cold wave (the "cold WSL" story above was at most half right). Fix: the update runs in a
+separate short-lived process (`dotasim/train/gpu_learner.py`, `--learner-python ~/dotasim-rocm-venv/bin/python`);
+the rollout process never touches ROCm. Checked on synthetic windows: two updates in 28.8 s including process start.

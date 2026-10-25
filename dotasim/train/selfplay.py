@@ -4,6 +4,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import json
+import os
 import time
 import traceback
 from dataclasses import dataclass, field
@@ -46,6 +47,8 @@ class SelfPlayConfig:
     dota_dir: Path | None = None
     ppo: PPOConfig = field(default_factory=PPOConfig)
     device: str = "cpu"   # learner device ("cuda" also names ROCm); rollouts always run the CPU copy
+    learner_python: str | None = None   # run each update in this interpreter (the ROCm venv) as a separate process:
+                                         # ROCm's runtime busy-waits two cores even idle, which starves the servers
 
 
 def _save(net: Policy, path: Path, frames: int, extra: dict) -> None:
@@ -158,12 +161,31 @@ async def wait_servers_exit(max_s: float = 40.0) -> int:
     return len(alive)
 
 
+def _update_in_subprocess(cfg: SelfPlayConfig, net: Policy, anchor: Policy, windows: list, version: int,
+                          opt_state: dict | None) -> tuple[dict, dict]:
+    """ppo_update in `cfg.learner_python` (see gpu_learner.py); payload via /tmp (native disk, not /mnt/c)."""
+    import subprocess
+    import tempfile
+    d = Path(tempfile.gettempdir())
+    inp, outp = d / f"dotasim_learner_{cfg.out.name}_in.pt", d / f"dotasim_learner_{cfg.out.name}_out.pt"
+    torch.save({"state_dict": net.state_dict(), "anchor": anchor.state_dict(), "opt_state": opt_state,
+                "windows": windows, "cfg": cfg.ppo, "version": version, "device": cfg.device}, inp)
+    env = dict(os.environ, PYTHONPATH=str(Path(__file__).resolve().parents[2]))
+    t0 = time.time()
+    subprocess.run([cfg.learner_python, "-m", "dotasim.train.gpu_learner", str(inp), str(outp)], check=True, env=env)
+    res = torch.load(outp, map_location="cpu", weights_only=False)
+    net.load_state_dict(res["state_dict"])
+    res["stats"]["update_wall_s"] = round(time.time() - t0, 1)
+    return res["stats"], res["opt_state"]
+
+
 async def train_selfplay(cfg: SelfPlayConfig) -> dict:
     cfg.out = Path(cfg.out)
     cfg.out.mkdir(parents=True, exist_ok=True)
     live = NetPolicy(cfg.init, greedy=False, threads=ROLLOUT_THREADS)   # 8 threads next to 12 servers spin-waits and 30x slower decisions
-    learner = live.net if cfg.device == "cpu" else Policy().to(cfg.device)   # the update runs here; weights copied both ways around it
-    anchor = Policy().to(cfg.device)
+    learner = live.net if cfg.device == "cpu" or cfg.learner_python else Policy().to(cfg.device)   # the update runs here; weights copied both ways around it
+    opt_state = None   # Adam state round-trips through the learner subprocess
+    anchor = Policy().to(cfg.device if not cfg.learner_python else "cpu")
     anchor.load_state_dict(live.net.state_dict())
     league = League(cfg.out / "pool", cfg.frames)
     opt = torch.optim.Adam(learner.parameters(), lr=cfg.ppo.lr)
@@ -186,11 +208,14 @@ async def train_selfplay(cfg: SelfPlayConfig) -> dict:
                 continue
             windows = buf.windows(cfg.ppo.gamma, cfg.ppo.lam)
             torch.set_num_threads(UPDATE_THREADS)
-            if learner is not live.net:
-                learner.load_state_dict(live.net.state_dict())
-            stats = ppo_update(learner, anchor, windows, cfg.ppo, opt, version=version) if windows else {}
-            if learner is not live.net:
-                live.net.load_state_dict({k: v.detach().cpu() for k, v in learner.state_dict().items()})
+            if cfg.learner_python and windows:
+                stats, opt_state = _update_in_subprocess(cfg, live.net, anchor, windows, version, opt_state)
+            else:
+                if learner is not live.net:
+                    learner.load_state_dict(live.net.state_dict())
+                stats = ppo_update(learner, anchor, windows, cfg.ppo, opt, version=version) if windows else {}
+                if learner is not live.net:
+                    live.net.load_state_dict({k: v.detach().cpu() for k, v in learner.state_dict().items()})
             torch.set_num_threads(ROLLOUT_THREADS)
         except Exception as e:  # noqa: BLE001 - one bad iteration must not end an unattended run
             line = {"iteration": it + 1, "error": f"{type(e).__name__}: {e}", "traceback": traceback.format_exc()[-2000:],
@@ -260,9 +285,11 @@ def main(argv=None):
     p.add_argument("--epochs", type=int, default=2)
     p.add_argument("--lr", type=float, default=1e-4)
     p.add_argument("--device", default="cpu", help="learner device: cpu, or cuda for a ROCm/CUDA GPU (rollouts stay on CPU)")
+    p.add_argument("--learner-python", default=None, help="interpreter for a separate learner process, e.g. ~/dotasim-rocm-venv/bin/python")
     a = p.parse_args(argv)
     cfg = SelfPlayConfig(init=Path(a.init), out=Path(a.out), instances=a.instances, iterations=a.iterations, cap_s=a.cap,
-                         eval_every=a.eval_every, eval_games=a.eval_games, ppo=PPOConfig(lr=a.lr, epochs=a.epochs), device=a.device)
+                         eval_every=a.eval_every, eval_games=a.eval_games, ppo=PPOConfig(lr=a.lr, epochs=a.epochs), device=a.device,
+                         learner_python=(str(Path(a.learner_python).expanduser()) if a.learner_python else None))
     print(json.dumps(asyncio.run(train_selfplay(cfg)), indent=1))
 
 
