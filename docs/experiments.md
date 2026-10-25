@@ -217,3 +217,10 @@ sp_v7 (fort-line winner): iteration 1 46,047 steps, 4 games finished, outcomes 2
 41,413 steps, 10 finished, 7 wins 3 losses 2 draws (team 2's view). Wins plus losses equal finished games for the first
 time, so the terminal reward reaches PPO from here on. Mean last hits per self-play game 8.6 then 6.0 (shorter games
 once fights start). Eval every 5 iterations; log at `runs/sp_v7/log.jsonl`.
+
+sp_v7 iteration 10 eval (6 games each): vs passive median 10 last hits, level 4, 0 deaths, all draws; vs unfair
+median 8.5 last hits, level 5, 0 deaths, all draws. Iteration 5 had 3.5 and 3.0 with a death in every game. The
+agent stopped diving the tower and farms more than the clone (4). Self-play last hits per game 4.1 (it 5) to 7.9
+(it 10) with more games reaching the cap. Phase 2's bar (5) is passed by the RL policy; phase 3's (50% vs unfair) is
+not: no kills yet, every eval game a draw. Anomaly: iterations 1 to 10 were all "self" waves (pool and Valve never
+drawn), checked next.
