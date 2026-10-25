@@ -45,6 +45,7 @@ class SyncFleet:
         self.resets: dict[int, asyncio.Task] = {}
         self.reset_failures: dict[int, int] = {}
         self.episodes = self.failed = self.steps = self.lua_timeouts = 0
+        self.ends: dict[str, int] = {}   # episode end reasons, from info['end']
         self.errors: list[str] = []
         self.act_ms: list[float] = []
         self._t0 = 0.0
@@ -161,6 +162,7 @@ class SyncFleet:
                     if done:
                         self.episodes += 1
                         self.lua_timeouts += info.get("lua_timeouts", 0)
+                        self.ends[str(info.get("end"))] = self.ends.get(str(info.get("end")), 0) + 1
                         if "error" in info:
                             self.errors.append(info["error"])
                         speeds.append(info.get("speed_x", 0.0))
@@ -183,4 +185,4 @@ class SyncFleet:
                 "games_per_hour": round(self.episodes / (wall / 3600), 1) if wall else 0.0,
                 "act_ms_mean": round(statistics.fmean(self.act_ms), 2) if self.act_ms else 0.0,
                 "speed_x_mean": round(statistics.fmean(speeds), 2) if speeds else 0.0,
-                "lua_timeouts": self.lua_timeouts, "errors": self.errors}
+                "lua_timeouts": self.lua_timeouts, "errors": self.errors, "ends": self.ends}

@@ -149,16 +149,16 @@ class DotaEnv:
                 self.channel.write_action(tm.token, tm.ws_idx, actions[tm.team])
             self._arm(tm)
         obs: dict[int, WorldState] = {}
-        done, error = False, None
+        done, error, end = False, None, None
         try:
             raws_by_team = await self._await_any()
         except InstanceError as failure:
             done, raws_by_team = True, {}
             # On a read timeout the log already had STEP_TIMEOUT_S to catch up; on EOF give it a moment.
             if await self._post_game_reached(wait_s=0.0 if isinstance(failure, StreamTimeout) else 3.0):
-                self.phase = "postgame"  # the server stops streaming at POST_GAME and later closes: a clean finish
+                self.phase, end = "postgame", "post_game_log"  # the server stops streaming at POST_GAME and later closes: a clean finish
             else:
-                error = str(failure)
+                error, end = str(failure), ("stream_timeout" if isinstance(failure, StreamTimeout) else "stream_eof")
         for team, raw in raws_by_team.items():
             tm = self._teams[team]
             ws = parse(raw)
@@ -173,12 +173,14 @@ class DotaEnv:
             ws0 = self._teams[next(iter(raws_by_team))].last
             self._hist.append((time.monotonic(), ws0.dota_time))
             if ws0.game_state == POST_GAME or ws0.dota_time >= self.matchup.cap_s:
-                done = True
+                done, end = True, ("post_game_state" if ws0.game_state == POST_GAME else "cap")
         if error:
             self.phase, self.last_error = "dead", error
         elif done:
             self.phase = "postgame"
         info = self._info(error)
+        if done:
+            info["end"] = end   # why the episode ended; the self-play log counts these per iteration
         if done and not error:
             ws0 = next((tm.last for tm in self._teams.values() if tm.last is not None), None)
             ended = (ws0 is not None and ws0.game_state == POST_GAME) or self.instance.post_game_seen

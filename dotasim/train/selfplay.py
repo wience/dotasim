@@ -182,7 +182,7 @@ async def train_selfplay(cfg: SelfPlayConfig) -> dict:
         if cfg.anchor_every and (it + 1) % cfg.anchor_every == 0:
             anchor.load_state_dict(live.net.state_dict())
         line = {"iteration": it + 1, "version": version, "steps": buf.steps(), "trajectories": len([t for t in buf.finished if not t.error]),
-                "episodes": totals["episodes"], "failed": totals.get("failed", 0), "lua_timeouts": totals["lua_timeouts"],
+                "episodes": totals["episodes"], "failed": totals.get("failed", 0), "lua_timeouts": totals["lua_timeouts"], "ends": totals.get("ends", {}),
                 "errors": len(totals["errors"]), "error_samples": totals["errors"][:3], "speed_x": totals["speed_x_mean"], "act_ms": totals["act_ms_mean"],
                 "outcomes": outcomes, "wall_s": round(time.time() - t0, 1), **stats}
         fin = [t for t in buf.finished if not t.error and t.steps]
