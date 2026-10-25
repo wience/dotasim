@@ -28,9 +28,12 @@ def _hp_frac(ws: WorldState, team: int) -> float:
 
 
 def potential(ws: WorldState, team: int) -> float:
-    me, foe = PID[team], PID[5 - team]
-    d = lambda key: _stat(ws, me, key) - _stat(ws, foe, key)
-    return (W_LH * d("last_hits") + W_DN * d("denies") + W_LVL * d("level") + W_NW * d("net_worth")
+    """Own progress in absolute terms plus the hp difference. The first version used mine-minus-enemy for every
+    term; in self-play that is zero-sum, so two copies idling in their fountains score the same as two copies farming,
+    and with death costing 1.5 the policy converged to standing still (sp_v7, iteration 20: level 1 after 5 min)."""
+    me = PID[team]
+    mine = lambda key: _stat(ws, me, key)
+    return (W_LH * mine("last_hits") + W_DN * mine("denies") + W_LVL * mine("level") + W_NW * mine("net_worth")
             + W_HP * (_hp_frac(ws, team) - _hp_frac(ws, 5 - team)))
 
 

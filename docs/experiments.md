@@ -227,3 +227,9 @@ drawn), checked next.
 
 Anomaly explained: the league drew opponents from `random.Random(0)`, and that sequence has no Valve wave until
 iteration 36 and its first pool wave at 13. sp_v7 keeps that sequence; the default seed is now fresh entropy.
+
+sp_v7 iterations 15 and 20: eval vs passive 8.5 then 0 last hits, level 4 then 1; vs unfair 6.5 then 0.5. By
+iteration 20 the agent stays in the fountain: 10 of 12 self-play games reach the cap with no death. Cause: the
+potential was mine minus the enemy's on every term, which is zero-sum in self-play, so mutual idling scores like mutual
+farming while a death costs 1.5. Decision (one change): own last hits, denies, level and net worth in absolute terms,
+hp difference kept. Golden trace regenerated. sp_v8 from bc_v2.
