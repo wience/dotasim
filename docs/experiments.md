@@ -165,3 +165,23 @@ Two changes against the live failure of bc_v1, both from the phase 2 diagnosis a
   carried state; the states it saw live were ones it had never been trained on. This is the stronger candidate.
 
 Feature cache: `data/sf_mirror_v1/cache_f5_v2` (label version in the name).
+
+Training speed: bc_v1's 8.4 min per epoch was disk time, not compute. `np.load` on an npz is lazy and every window
+access re-read whole arrays from `/mnt/c`; the process sat in disk wait at 30% of one core. Holding the 559 MB cache
+in RAM makes an epoch 142 s on 8 threads (3.5x), so bc_v2's 8 epochs take 20 minutes, not 100.
+
+bc_v2 result (8 epochs, 19 min, 2,269 updates): type accuracy 73% vs a 60% majority rate (labels changed, so not
+comparable with bc_v1's 81%), attack-target accuracy 91%.
+
+Live evaluation, SF vs Valve passive, 5 game-minutes, 3 games (`runs/eval_bc_v2_passive`):
+
+| policy | last hits per game | median | median level | deaths |
+|---|---|---|---|---|
+| random | 0, 0, 0 | 0 | 1 | 0 |
+| bc_v1 sampled | 0, 0, 0 | 0 | 2 | 1 |
+| bc_v2 sampled | 3, 4, 6 | **4** | 4 | 1 |
+
+Verdict: the clone lanes. Median 4 is one short of the phase 2 exit (5), so the xfail stays with an updated reason,
+but this is the first live sign the pipeline works end to end. Given that the label change barely moved consistency,
+the GRU train/serve skew was the main cause of bc_v1's failure. Self-play restarts from bc_v2 as `runs/sp_v5`.
+Open: 50 to 170 Lua attack mismatches per game (attack orders on units the Lua side could not find), worth a look.

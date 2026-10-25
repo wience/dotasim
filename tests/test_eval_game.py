@@ -8,11 +8,11 @@ from dotasim.eval.eval import evaluate
 from tests.conftest import dota_dir
 
 pytestmark = [pytest.mark.game, pytest.mark.slow]
-CKPT = Path(__file__).resolve().parents[1] / "runs" / "bc_v1" / "policy.pt"
+CKPT = Path(__file__).resolve().parents[1] / "runs" / "bc_v2" / "policy.pt"
 
 
-@pytest.mark.skipif(not CKPT.exists(), reason="no bc_v1 checkpoint")
-@pytest.mark.xfail(strict=False, reason="phase 2 exit not met by bc_v1: the clone reaches lane only by chance (see docs/experiments.md)")
+@pytest.mark.skipif(not CKPT.exists(), reason="no bc_v2 checkpoint")
+@pytest.mark.xfail(strict=False, reason="phase 2 exit nearly met by bc_v2: median 4 last hits of the 5 required (see docs/experiments.md)")
 def test_bc_agent_lanes_against_passive_bots(tmp_path):
     res = asyncio.run(asyncio.wait_for(
         evaluate(checkpoint=CKPT, games=3, instances=3, difficulty=0, cap_s=300, out=tmp_path / "eval",
