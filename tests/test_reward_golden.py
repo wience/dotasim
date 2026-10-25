@@ -35,9 +35,11 @@ def test_shaping_telescopes_and_matches_trace():
     np.testing.assert_allclose(r, np.array(json.loads(TRACE.read_text())), atol=1e-5)
 
 
-def test_winner_from_player_kills():
-    ws = WorldState(team=2, dota_time=300, game_time=400, game_state=6, player_kills={0: 2, 5: 0})
+def test_winner_from_deaths():
+    ws = WorldState(team=2, dota_time=187, game_time=280, game_state=6, player_kills={0: 0, 5: 0}, player_deaths={0: 1, 5: 0})
+    assert winner(ws) == 3          # our hero died once (to the tower: no kill credited), the game ended: we lost
+    ws.player_deaths = {0: 0, 5: 1}
     assert winner(ws) == 2
-    ws.player_kills = {0: 1, 5: 1}
-    assert winner(ws) is None
+    ws.player_deaths = {0: 0, 5: 0}
+    assert winner(ws) is None       # nobody died and both towers stand: a draw (the cap)
     assert terminal_reward(2, 2) == 1.0 and terminal_reward(3, 2) == -1.0 and terminal_reward(2, None) == 0.0

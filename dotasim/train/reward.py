@@ -10,7 +10,6 @@ from dotasim.env.worldstate import WorldState
 GAMMA = 0.9995
 W_LH, W_DN, W_LVL, W_NW, W_HP = 0.02, 0.01, 0.1, 0.0005, 0.5
 TOWER_MID = {2: "npc_dota_goodguys_tower1_mid", 3: "npc_dota_badguys_tower1_mid"}
-KILLS_TO_WIN = 2
 PID = {2: 0, 3: 5}   # player ids of the 1v1 heroes
 
 
@@ -40,15 +39,15 @@ def step_reward(prev: WorldState, cur: WorldState, team: int, gamma: float = GAM
 
 
 def winner(ws: WorldState) -> int | None:
-    """2, 3 or None (draw). Kills from the players list; else the team whose enemy mid T1 is gone."""
-    kills = {2: 0, 3: 0}
-    for pid, k in ws.player_kills.items():
+    """2, 3 or None (draw), for a game that has ended. On this build the 1v1 ends at the first hero death (measured:
+    every finished eval game had exactly one death), so the team with fewer deaths wins; kills alone miss deaths to
+    the tower. Fallback: the team whose enemy mid T1 is gone."""
+    deaths = {2: 0, 3: 0}
+    for pid, d in ws.player_deaths.items():
         t = 2 if pid < 5 else 3
-        kills[t] = max(kills[t], k)
-    if kills[2] >= KILLS_TO_WIN and kills[2] > kills[3]:
-        return 2
-    if kills[3] >= KILLS_TO_WIN and kills[3] > kills[2]:
-        return 3
+        deaths[t] = max(deaths[t], d)
+    if deaths[2] != deaths[3]:
+        return 2 if deaths[2] < deaths[3] else 3
     alive = {t: any(u.name == name and u.alive for u in ws.units) for t, name in TOWER_MID.items()}
     present = {t: any(u.name == name for u in ws.units) for t, name in TOWER_MID.items()}
     if present[3] and not alive[3]:
