@@ -185,3 +185,17 @@ Verdict: the clone lanes. Median 4 is one short of the phase 2 exit (5), so the 
 but this is the first live sign the pipeline works end to end. Given that the label change barely moved consistency,
 the GRU train/serve skew was the main cause of bc_v1's failure. Self-play restarts from bc_v2 as `runs/sp_v5`.
 Open: 50 to 170 Lua attack mismatches per game (attack orders on units the Lua side could not find), worth a look.
+
+## 2026-10-25 Phase 3: sp_v5 from bc_v2, and two findings on the way
+
+First launch (right after a WSL restart, cold page cache): iterations 1 and 2 ended every game about 10 s before
+the horn with 5k to 10k steps, decisions at 220 to 500 ms. Stopped, discarded. Added `info["end"]` (cap,
+post_game_state, post_game_log, stream_timeout, stream_eof) and an `ends` count per iteration in the log so this is
+never a guess again. The relaunch was healthy from iteration 1: 40,744 steps, 24 trajectories, 50 timeouts,
+7.2 last hits per game (the clone alone gets 4 vs passive bots).
+
+Every one of those 12 games ended `post_game_log`, yet all were recorded as draws. The eval files explain it: every
+finished game had exactly one death (ended at 89, 120, 187, 198 s), so on this build the 1v1 ends at the first hero
+death, while `winner()` demanded two kills. That is why sp_v4 was "all draws" too: the loss signal never reached PPO.
+Fixed: fewer deaths wins once the game has ended (a death to the tower credits no kill), tower rule as fallback.
+sp_v5 restarted from bc_v2 with the fix; log at `runs/sp_v5/log.jsonl`, eval every 5 iterations.
