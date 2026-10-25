@@ -249,3 +249,15 @@ every game. Decision point for the shaping change: iteration 20 (where sp_v7 had
 A third of a server's CPU went to recording replays nobody watched during training. Self-play rollouts now launch
 with `tv=False`; evaluation games keep recording so they can be watched. Launching without `-fill_with_bots`
 produced no game at all (empty console log, three failed resets); the eight fillers stay for now.
+
+## 2026-10-25 GPU learner (RX 9070 XT, ROCm 7.2 under WSL2, Ubuntu 26.04)
+
+Adrenalin 26.1.1 on Windows, `amdgpu-install --usecase=wsl,rocm --no-dkms` from the 24.04 repo (works on 26.04),
+AMD's torch 2.9.1+rocm7.2 wheels in a second venv (`scripts/setup_rocm_wsl.sh`, `scripts/wsl_rocm.sh`).
+`scripts/bench_ppo.py`: one PPO update on 1,400 synthetic windows of 32 steps (a real iteration's size), 2 epochs,
+minibatch 64: **19.7 s on the GPU** against about 150 s on 8 CPU threads. Rollouts stay on the CPU copy of the
+network (`--device cuda` copies weights to the learner before the update and back after).
+
+Also today: the evaluator plays half its games on each side (verified: one game as Radiant, one as Dire, stats
+collected for both), and the league alternates the live side against pool and Valve opponents. Launching without
+filler bots is a dead end (the server idles with zero players).
