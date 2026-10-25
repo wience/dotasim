@@ -322,3 +322,8 @@ Side bias in the recorded Valve-vs-Valve games (`scripts/side_bias.py`, 23 games
 hits vs Dire 27.7, net worth 6,917 vs 6,551, Dire ahead in 9 of 23. The map does not favour Dire. Next discriminator:
 bc_v2 against itself for 24 games (`scripts/probe_sides.py`); a Dire edge there means the lockstep protocol, a 50/50
 means self-play dynamics amplify a small learned edge.
+
+bc_v2 against itself, 24 games, 300 s cap (`scripts/probe_sides.py`): Radiant 8, Dire 3, 13 draws; 11 games
+decided by a fort, 48 Lua timeouts in 73,792 steps. With a fixed policy the protocol does not favour Dire either. The
+Dire dominance inside training runs (Radiant 13 / Dire 47 in sp_v11) is therefore a learned self-play dynamic, not
+the lockstep order and not the map. Branch 2 closed without a protocol change.
