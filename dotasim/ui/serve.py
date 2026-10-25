@@ -1,4 +1,5 @@
-"""Serve a run directory with the fleet status page: python -m dotasim.ui.serve runs/<name> [--port 8765]"""
+"""Serve a run directory (runs/<name>, the one holding log.jsonl) with the dashboard at / and the plain fleet table
+at /status.html: python -m dotasim.ui.serve runs/<name> [--port 8765]"""
 import argparse
 import http.server
 import shutil
@@ -15,6 +16,9 @@ def main(argv=None):
     run = Path(a.run_dir)
     run.mkdir(parents=True, exist_ok=True)
     shutil.copy(HERE / "status.html", run / "status.html")
+    web = HERE.parent.parent / "web" / "index.html"   # the full dashboard; it reads run/status.json, log.jsonl, config.json
+    if web.exists():
+        shutil.copy(web, run / "index.html")
 
     class Handler(http.server.SimpleHTTPRequestHandler):
         def __init__(self, *args, **kw):

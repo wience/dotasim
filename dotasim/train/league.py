@@ -48,5 +48,6 @@ class League:
             path = self.rng.choice(self.pool)
             if path not in self._cache:
                 self._cache[path] = NetPolicy(path, greedy=False)
+                self._cache[path].name = f"pool {Path(path).stem}"
             return "pool", self._cache[path]
         return "self", None

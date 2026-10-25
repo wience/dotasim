@@ -288,15 +288,23 @@ class DotaEnv:
     def status(self) -> dict:
         ws = next((tm.last for tm in self._teams.values() if tm.last is not None), None)
         st = self.instance.stats()
-        heroes, kills, last_hits = {}, {}, {}
+        heroes, kills, last_hits, teams = {}, {}, {}, {}
         if ws:
             for t in (2, 3):
                 h = ws.hero_of(t)
                 heroes[t] = h.name.removeprefix("npc_dota_hero_") if h else ""
                 kills[t] = h.kills if h else 0
                 last_hits[t] = h.last_hits if h else -1
-        to, _ = self._lua_totals()
+                stt = ws.stats.get(0 if t == 2 else 5, {})
+                teams[t] = {"hero": heroes[t], "role": self.matchup.roles.get(0 if t == 2 else 5, "filler"),
+                            "kills": kills[t], "deaths": h.deaths if h else 0, "last_hits": last_hits[t],
+                            "denies": h.denies if h else -1, "level": h.level if h else stt.get("level", 0),
+                            "hp": h.hp if h else 0, "hp_max": h.hp_max if h else 0, "alive": bool(h and h.alive),
+                            "gold": stt.get("gold", h.gold if h else 0), "net_worth": stt.get("net_worth", -1),
+                            "x": round(h.x) if h else None, "y": round(h.y) if h else None}
+        to, mm = self._lua_totals()
         return {"index": self.cfg.index, "pid": st["pid"], "phase": self.phase, "game_time": ws.dota_time if ws else 0.0,
                 "speed_x": round(self.speed_x(), 2), "heroes": heroes, "kills": kills, "last_hits": last_hits,
-                "episode": self.episode, "lua_timeouts": to, "last_error": self.last_error,
-                "cpu": st["cpu"], "rss_mb": round(st["rss_mb"])}
+                "episode": self.episode, "lua_timeouts": to, "lua_mismatch": mm, "last_error": self.last_error,
+                "cpu": st["cpu"], "rss_mb": round(st["rss_mb"]), "teams": teams, "cap_s": self.matchup.cap_s,
+                "frames": self.matchup.frames, "steps": self._steps}

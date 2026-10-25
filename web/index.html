@@ -5,132 +5,317 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>dotasim live</title>
 <style>
-  :root { color-scheme: dark; --bg: #111; --fg: #ddd; --mute: #888; --line: #2a2a2a; --ok: #5c5; --bad: #e55; --acc: #6af; }
-  body { margin: 0; padding: 16px; background: var(--bg); color: var(--fg); font: 14px/1.45 system-ui, -apple-system, Segoe UI, sans-serif; }
-  h1 { font-size: 18px; margin: 0 0 2px; font-weight: 600; }
-  h2 { font-size: 14px; margin: 20px 0 6px; color: var(--mute); font-weight: 500; text-transform: uppercase; letter-spacing: .04em; }
-  .sub { color: var(--mute); margin-bottom: 12px; }
-  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px; max-width: 1100px; }
-  .card { border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; }
-  .card .k { color: var(--mute); font-size: 12px; } .card .v { font-size: 22px; font-weight: 600; } .card .d { color: var(--mute); font-size: 12px; }
-  table { border-collapse: collapse; width: 100%; max-width: 1100px; }
-  th, td { text-align: left; padding: 4px 8px; border-bottom: 1px solid var(--line); white-space: nowrap; }
-  th { color: var(--mute); font-weight: 500; }
-  tr.bad { border-left: 3px solid var(--bad); } tr.ev { background: #161a16; }
-  canvas { display: block; width: 100%; max-width: 1100px; height: 220px; border: 1px solid var(--line); border-radius: 8px; background: #0d0f0d; }
-  .legend { color: var(--mute); font-size: 12px; margin: 4px 0 0; }
-  .legend b { font-weight: 600; } .acc { color: var(--acc); } .ok { color: var(--ok); } .bad { color: var(--bad); }
-  #err { color: var(--bad); white-space: pre-wrap; }
-  .wrap { overflow-x: auto; }
+  :root { color-scheme: dark; --bg: #0f1012; --panel: #16181c; --fg: #e6e6e6; --mute: #8b8f98; --line: #262a31; --rad: #4fc36a; --dire: #e4574f; --acc: #6aa8ff; --warn: #e8b64a; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--fg); font: 14px/1.45 system-ui, -apple-system, Segoe UI, sans-serif; }
+  header { display: flex; flex-wrap: wrap; gap: 8px 20px; align-items: baseline; padding: 14px 20px; border-bottom: 1px solid var(--line); background: var(--panel); position: sticky; top: 0; z-index: 5; }
+  header h1 { font-size: 17px; margin: 0; font-weight: 650; }
+  header .pill { font-size: 12px; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--line); color: var(--mute); }
+  header .pill b { color: var(--fg); font-weight: 600; }
+  main { padding: 16px 20px 40px; max-width: 1400px; margin: 0 auto; }
+  h2 { font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--mute); margin: 22px 0 8px; font-weight: 600; }
+  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px; }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; min-height: 74px; }
+  .card .k { color: var(--mute); font-size: 11.5px; } .card .v { font-size: 22px; font-weight: 650; line-height: 1.2; margin: 2px 0; } .card .d { color: var(--mute); font-size: 11.5px; }
+  .grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(420px, 1fr)); gap: 10px; }
+  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; }
+  .panel h3 { margin: 0 0 6px; font-size: 13px; font-weight: 600; }
+  canvas.chart { width: 100%; height: 190px; display: block; }
+  .legend { color: var(--mute); font-size: 11.5px; margin-top: 4px; }
+  .sw { display: inline-block; width: 10px; height: 10px; border-radius: 2px; vertical-align: -1px; margin-right: 4px; }
+  .fleet { display: grid; grid-template-columns: repeat(auto-fill, minmax(215px, 1fr)); gap: 8px; }
+  .inst { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; cursor: pointer; transition: border-color .15s; }
+  .inst:hover { border-color: var(--acc); } .inst.dead { border-color: var(--dire); }
+  .inst .top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+  .inst .idx { font-weight: 650; } .badge { font-size: 10.5px; padding: 1px 7px; border-radius: 999px; border: 1px solid var(--line); color: var(--mute); text-transform: uppercase; letter-spacing: .04em; }
+  .badge.self { color: var(--acc); border-color: #2b4a7a; } .badge.pool { color: var(--warn); border-color: #5a4a22; } .badge.valve { color: var(--dire); border-color: #6a2f2c; }
+  .bar { height: 6px; background: #22262d; border-radius: 3px; overflow: hidden; margin: 6px 0; } .bar i { display: block; height: 100%; background: var(--acc); }
+  .vs { display: grid; grid-template-columns: 1fr auto 1fr; gap: 6px; align-items: center; font-size: 12.5px; }
+  .vs .r { color: var(--rad); } .vs .d { color: var(--dire); text-align: right; } .vs .m { color: var(--mute); font-size: 11px; }
+  .hp { height: 4px; background: #22262d; border-radius: 2px; overflow: hidden; margin-top: 3px; } .hp i { display: block; height: 100%; }
+  .meta { color: var(--mute); font-size: 11.5px; margin-top: 6px; display: flex; justify-content: space-between; }
+  table { border-collapse: collapse; width: 100%; font-size: 13px; }
+  th, td { text-align: left; padding: 5px 8px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+  th { color: var(--mute); font-weight: 500; position: sticky; top: 0; background: var(--panel); }
+  .wrap { overflow: auto; max-height: 420px; }
+  tr.ev td { background: #171d17; } tr.bad td { color: var(--dire); }
+  dl { display: grid; grid-template-columns: max-content 1fr; gap: 3px 14px; margin: 0; font-size: 13px; } dt { color: var(--mute); } dd { margin: 0; }
+  #err { color: var(--dire); white-space: pre-wrap; margin: 8px 0; }
+  /* drawer */
+  #overlay { position: fixed; inset: 0; background: rgba(0,0,0,.55); display: none; z-index: 10; }
+  #drawer { position: fixed; top: 0; right: 0; bottom: 0; width: min(760px, 100%); background: var(--bg); border-left: 1px solid var(--line); overflow: auto; padding: 16px 20px; display: none; z-index: 11; }
+  #drawer .close { position: absolute; top: 12px; right: 16px; background: none; border: 1px solid var(--line); color: var(--fg); border-radius: 6px; padding: 4px 10px; cursor: pointer; }
+  #drawer h2:first-of-type { margin-top: 4px; }
+  .hero { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; }
+  .hero.r { border-top: 3px solid var(--rad); } .hero.d { border-top: 3px solid var(--dire); }
+  .hero .name { font-weight: 650; display: flex; justify-content: space-between; }
+  .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px 10px; font-size: 12.5px; margin-top: 6px; } .stats span { color: var(--mute); }
+  #map { width: 100%; max-width: 480px; aspect-ratio: 1; display: block; background: #0a0e0a; border: 1px solid var(--line); border-radius: 8px; }
+  .muted { color: var(--mute); }
+  @media (max-width: 700px) { main { padding: 12px; } header { padding: 10px 12px; } }
 </style>
 </head>
 <body>
-<h1>dotasim live <span id="run" style="color:var(--mute);font-weight:400"></span></h1>
-<div class="sub" id="stamp">loading…</div>
-<div id="err"></div>
+<header>
+  <h1>dotasim live</h1>
+  <span class="pill" id="p-run">run <b>–</b></span>
+  <span class="pill" id="p-wave">wave <b>–</b></span>
+  <span class="pill" id="p-kind">training <b>–</b></span>
+  <span class="pill" id="p-age">snapshot <b>–</b></span>
+  <span class="pill" id="p-src">source <b>–</b></span>
+</header>
+<main>
+  <div id="err"></div>
+  <div class="cards" id="cards"></div>
 
-<div class="cards" id="cards"></div>
+  <h2>What is training</h2>
+  <div class="grid2">
+    <div class="panel"><h3>Algorithm</h3><dl id="algo"></dl></div>
+    <div class="panel"><h3>Reward and league</h3><dl id="reward"></dl></div>
+  </div>
 
-<h2>Learning curve</h2>
-<canvas id="chart" width="1100" height="220"></canvas>
-<div class="legend"><b class="acc">blue</b> last hits per self-play game (training) · <b class="ok">green</b> evaluation vs passive bots · <b class="bad">red</b> evaluation vs unfair bots · dashed grey: the clone's 4</div>
+  <h2>Progress</h2>
+  <div class="grid2">
+    <div class="panel"><h3>Last hits per 5-minute game</h3><canvas class="chart" id="c-lh"></canvas>
+      <div class="legend"><i class="sw" style="background:#6aa8ff"></i>training (self-play) <i class="sw" style="background:#4fc36a"></i>eval vs passive <i class="sw" style="background:#e4574f"></i>eval vs unfair <i class="sw" style="background:#666"></i>clone (4)</div></div>
+    <div class="panel"><h3>Outcomes per wave (live side's view)</h3><canvas class="chart" id="c-out"></canvas>
+      <div class="legend"><i class="sw" style="background:#4fc36a"></i>wins <i class="sw" style="background:#555c66"></i>draws <i class="sw" style="background:#e4574f"></i>losses · letter under the bar: s self, p pool, v Valve</div></div>
+    <div class="panel"><h3>Drift and exploration</h3><canvas class="chart" id="c-kl"></canvas>
+      <div class="legend"><i class="sw" style="background:#e8b64a"></i>KL to anchor <i class="sw" style="background:#b48cff"></i>entropy</div></div>
+    <div class="panel"><h3>Throughput</h3><canvas class="chart" id="c-thr"></canvas>
+      <div class="legend"><i class="sw" style="background:#6aa8ff"></i>steps per wave (k) <i class="sw" style="background:#e8b64a"></i>decision ms <i class="sw" style="background:#4fc36a"></i>update s</div></div>
+  </div>
 
-<h2>Fleet right now</h2>
-<div class="wrap"><table>
-  <thead><tr><th>#</th><th>phase</th><th>game time</th><th>speed</th><th>kills R–D</th><th>last hits R / D</th><th>Lua timeouts</th><th>cpu%</th><th>error</th></tr></thead>
-  <tbody id="fleet"></tbody>
-</table></div>
+  <h2>Fleet <span class="muted" id="fleet-sub"></span></h2>
+  <div class="fleet" id="fleet"></div>
 
-<h2>Iterations (newest first)</h2>
-<div class="wrap"><table>
-  <thead><tr><th>it</th><th>opponent</th><th>steps</th><th>ended by fort / cap</th><th>W–D–L</th><th>last hits</th><th>KL to anchor</th><th>update s</th><th>eval passive lh · draw</th><th>eval unfair lh · win · draw</th></tr></thead>
-  <tbody id="its"></tbody>
-</table></div>
+  <h2>Evaluations</h2>
+  <div class="wrap"><table><thead><tr><th>it</th><th colspan="4">vs passive: last hits · level · win · draw</th><th colspan="4">vs unfair: last hits · level · win · draw</th></tr></thead><tbody id="evals"></tbody></table></div>
+
+  <h2>Iterations (newest first)</h2>
+  <div class="wrap"><table>
+    <thead><tr><th>it</th><th>opponent</th><th>steps</th><th>trajectories</th><th>fort / cap</th><th>W–D–L</th><th>last hits</th><th>return</th><th>loss π</th><th>loss V</th><th>entropy</th><th>KL anchor</th><th>clip</th><th>speed</th><th>decision ms</th><th>update s</th><th>Lua t/o</th></tr></thead>
+    <tbody id="its"></tbody>
+  </table></div>
+</main>
+
+<div id="overlay"></div>
+<div id="drawer"><button class="close" id="close">close</button><div id="detail"></div></div>
 
 <script>
 const $ = (id) => document.getElementById(id);
 const params = new URLSearchParams(location.search);
-// Live data: live.json on the `live` branch of the public repo, rewritten every minute by scripts/publish_status.py.
-const SRC = params.get("src") || "https://api.github.com/repos/wience/dotasim/contents/live.json?ref=live";
+const LOCAL = params.get("src") === "local" || (["localhost", "127.0.0.1"].includes(location.hostname) && params.get("src") !== "live");
+const API = params.get("src") && params.get("src") !== "local" ? params.get("src") : "https://api.github.com/repos/wience/dotasim/contents/live.json?ref=live";
 const RAW = "https://raw.githubusercontent.com/wience/dotasim/live/live.json";
 const mmss = (t) => { const s = Math.max(0, Math.round(t || 0)); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`; };
-const ago = (iso) => { if (!iso) return "?"; const s = (Date.now() - Date.parse(iso)) / 1000; return s < 90 ? `${Math.round(s)} s ago` : s < 5400 ? `${Math.round(s / 60)} min ago` : `${(s / 3600).toFixed(1)} h ago`; };
+const ago = (iso) => { if (!iso) return "–"; const s = (Date.now() - Date.parse(iso)) / 1000; return s < 90 ? `${Math.round(s)} s ago` : s < 5400 ? `${Math.round(s / 60)} min ago` : `${(s / 3600).toFixed(1)} h ago`; };
 const pct = (x) => x == null ? "–" : Math.round(x * 100) + "%";
+const f1 = (x) => x == null ? "–" : Number(x).toFixed(1);
+const f3 = (x) => x == null ? "–" : Number(x).toFixed(3);
+const kindOf = (o) => o ? (Object.entries(o).find(([, v]) => v.some((x) => x > 0)) || ["–"])[0] : "–";
+const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+let D = { iterations: [], status: {}, config: {}, maps: {} }, selected = null;
 
-async function load() {
+async function loadLive() {
+  const r = await fetch(`${API}${API.includes("?") ? "&" : "?"}t=${Date.now()}`, { headers: { Accept: "application/vnd.github+json" } });
+  if (r.ok) { const g = await r.json(); return g.content ? JSON.parse(decodeURIComponent(escape(atob(g.content.replace(/\n/g, ""))))) : g; }
+  const r2 = await fetch(`${RAW}?t=${Date.now()}`, { cache: "no-store" });
+  if (!r2.ok) throw new Error(`HTTP ${r.status} / ${r2.status}`);
+  return r2.json();
+}
+async function loadLocal(full) {
+  const get = async (p, json = true) => { const r = await fetch(`${p}?t=${Date.now()}`, { cache: "no-store" }); if (!r.ok) return null; return json ? r.json() : r.text(); };
+  const out = { run: location.pathname.split("/").filter(Boolean).pop() || "local", published: new Date().toISOString(), status: await get("run/status.json") || {} };
+  if (full || !D.config || !Object.keys(D.config).length) {
+    out.config = await get("config.json") || {};
+    const log = await get("log.jsonl", false);
+    out.iterations = (log || "").split("\n").filter(Boolean).map((l) => { try { return JSON.parse(l); } catch { return null; } }).filter(Boolean);
+  } else { out.config = D.config; out.iterations = D.iterations; }
+  out.maps = D.maps || {};
+  return out;
+}
+let tick = 0;
+async function refresh() {
   try {
-    let d;
-    const r = await fetch(`${SRC}${SRC.includes("?") ? "&" : "?"}t=${Date.now()}`, { headers: { Accept: "application/vnd.github+json" } });
-    if (r.ok) {
-      const g = await r.json();
-      d = g.content ? JSON.parse(decodeURIComponent(escape(atob(g.content.replace(/\n/g, ""))))) : g;
-    } else {
-      const r2 = await fetch(`${RAW}?t=${Date.now()}`, { cache: "no-store" });   // API rate limited: fall back to the CDN copy (a few minutes stale)
-      if (!r2.ok) throw new Error(`HTTP ${r.status} / ${r2.status}`);
-      d = await r2.json();
-    }
-    render(d);
+    const d = LOCAL ? await loadLocal(tick++ % 10 === 0) : await loadLive();
+    D = { iterations: [], status: {}, config: {}, maps: {}, ...d };
+    render();
     $("err").textContent = "";
-  } catch (e) { $("err").textContent = "cannot load live data: " + e.message; }
+  } catch (e) { $("err").textContent = "cannot load data: " + e.message; }
 }
 
-function render(d) {
-  const its = d.iterations || [], st = d.status || {};
-  const last = its.length ? its[its.length - 1] : null;
-  const evals = its.filter((i) => i.eval);
-  const lastEval = evals.length ? evals[evals.length - 1] : null;
-  $("run").textContent = d.run || "";
-  $("stamp").textContent = `snapshot ${ago(d.published)} · fleet status ${st.updated ? ago(st.updated) : "–"} · ${its.length} iterations logged`;
+function render() {
+  const its = D.iterations, st = D.status, cfg = D.config, inst = st.instances || [];
+  const last = [...its].reverse().find((i) => i.steps != null && !i.skipped) || its[its.length - 1];
+  const evals = its.filter((i) => i.eval); const le = evals[evals.length - 1];
+  const kind = st.meta?.kind || (last ? kindOf(last.outcomes) : "–");
+  $("p-run").innerHTML = `run <b>${esc(D.run)}</b>`;
+  $("p-wave").innerHTML = `wave <b>${st.meta?.iteration ?? (last ? last.iteration + 1 : "–")}</b> of ${cfg.iterations ?? "–"}`;
+  $("p-kind").innerHTML = `training <b>${esc(kind)}</b>${st.meta?.version != null ? ` · policy v${st.meta.version}` : ""}`;
+  $("p-age").innerHTML = `snapshot <b>${ago(D.published)}</b>${st.updated ? ` · fleet ${ago(st.updated)}` : ""}`;
+  $("p-src").innerHTML = `source <b>${LOCAL ? "this machine" : "github live branch"}</b>`;
+
+  const alive = inst.filter((i) => i.phase !== "dead").length;
   const cards = [
-    ["iteration", last ? last.iteration : "–", last && last.skipped ? "last wave skipped (cold)" : ""],
-    ["self-play last hits / game", last && last.mean_last_hits != null ? last.mean_last_hits.toFixed(1) : "–", "clone: 4"],
-    ["eval vs passive", lastEval ? lastEval.eval.last_hits_passive : "–", lastEval ? `at it ${lastEval.iteration} · draws ${pct(lastEval.eval.draw_rate_passive)}` : "no eval yet"],
-    ["eval vs unfair", lastEval ? lastEval.eval.last_hits_unfair : "–", lastEval ? `wins ${pct(lastEval.eval.win_rate_unfair)} · draws ${pct(lastEval.eval.draw_rate_unfair)}` : ""],
-    ["KL to anchor", last && last.kl_anchor != null ? last.kl_anchor.toFixed(3) : "–", "drift from the clone"],
-    ["servers", st.instances ? `${st.instances.filter((i) => i.phase !== "dead").length}/${st.instances.length}` : "–", st.totals ? `${st.totals.lua_timeouts} Lua timeouts · ${st.totals.errors} errors` : ""],
+    ["iterations done", its.filter((i) => !i.skipped && !i.error).length, `${its.filter((i) => i.skipped).length} skipped · ${its.filter((i) => i.error).length} errors`],
+    ["training last hits / game", f1(last?.mean_last_hits), "clone: 4 · Valve bot: about 18"],
+    ["eval vs passive", le ? le.eval.last_hits_passive : "–", le ? `it ${le.iteration} · level ${le.eval.level_passive} · draws ${pct(le.eval.draw_rate_passive)}` : "first eval pending"],
+    ["eval vs unfair", le ? le.eval.last_hits_unfair : "–", le ? `wins ${pct(le.eval.win_rate_unfair)} · draws ${pct(le.eval.draw_rate_unfair)}` : ""],
+    ["KL to anchor", f3(last?.kl_anchor), `entropy ${f3(last?.entropy)}`],
+    ["servers", inst.length ? `${alive}/${inst.length}` : "–", st.totals ? `${st.totals.lua_timeouts} Lua timeouts · ${st.totals.errors} errors` : ""],
+    ["speed", last?.speed_x != null ? `${f1(last.speed_x)}x` : "–", last ? `${last.act_ms ?? "–"} ms per decision · update ${last.update_wall_s ?? last.wall_s ?? "–"} s` : ""],
+    ["steps last wave", last?.steps != null ? (last.steps / 1000).toFixed(1) + "k" : "–", last ? `${last.trajectories ?? "–"} trajectories · ${last.windows ?? "–"} windows` : ""],
   ];
-  $("cards").innerHTML = cards.map(([k, v, d2]) => `<div class="card"><div class="k">${k}</div><div class="v">${v}</div><div class="d">${d2}</div></div>`).join("");
+  $("cards").innerHTML = cards.map(([k, v, d]) => `<div class="card"><div class="k">${k}</div><div class="v">${v}</div><div class="d">${esc(d)}</div></div>`).join("");
 
-  $("fleet").innerHTML = (st.instances || []).map((i) => `
-    <tr class="${i.phase === "dead" ? "bad" : ""}"><td>${i.index}</td><td>${i.phase}</td><td>${mmss(i.game_time)}</td><td>${i.speed_x ?? "–"}x</td>
-    <td>${(i.kills?.[2] ?? 0)}–${(i.kills?.[3] ?? 0)}</td><td>${(i.last_hits?.[2] ?? -1)} / ${(i.last_hits?.[3] ?? -1)}</td>
-    <td>${i.lua_timeouts ?? 0}</td><td>${Math.round(i.cpu ?? 0)}</td><td style="white-space:normal">${i.last_error || ""}</td></tr>`).join("") || "<tr><td colspan=9>no fleet status in the snapshot</td></tr>";
+  const ppo = cfg.ppo || {};
+  $("algo").innerHTML = dl([
+    ["method", "PPO over 32-step GRU windows; behaviour-cloned prior as init and KL anchor"],
+    ["policy", "transformer over 48 unit tokens (4 layers, width 128) + GRU 256; heads: type, direction, distance, target, value"],
+    ["init", cfg.init], ["device", cfg.learner_python ? `${cfg.device} (update in a separate process)` : cfg.device],
+    ["epochs · minibatch", ppo.epochs != null ? `${ppo.epochs} · ${ppo.minibatch}` : "–"],
+    ["lr · clip", ppo.lr != null ? `${ppo.lr} · ${ppo.clip}` : "–"],
+    ["kl coef · entropy coef · vf coef", ppo.kl_coef != null ? `${ppo.kl_coef} · ${ppo.ent_coef} · ${ppo.vf_coef}` : "–"],
+    ["gamma · lambda", ppo.gamma != null ? `${ppo.gamma} · ${ppo.lam}` : "–"],
+    ["servers · game cap · frames", cfg.instances != null ? `${cfg.instances} · ${cfg.cap_s} s · every ${cfg.frames} ticks (${(cfg.frames / 30).toFixed(2)} s)` : "–"],
+    ["eval", cfg.eval_every ? `every ${cfg.eval_every} iterations, ${cfg.eval_games} games per difficulty, half per side` : "–"],
+    ["commit · started", cfg.git ? `${cfg.git} · ${cfg.started}` : "–"],
+  ]);
+  const rw = cfg.reward || {}, lg = cfg.league || {};
+  $("reward").innerHTML = dl([
+    ["terminal", rw.terminal || "+1 win / -1 loss, 0 at the cap"],
+    ["shaping", rw.shaping || "–"],
+    ["last hit · deny · level", rw.W_LH != null ? `${rw.W_LH} · ${rw.W_DN} · ${rw.W_LVL}` : "–"],
+    ["net worth · hp difference", rw.W_NW != null ? `${rw.W_NW} per gold · ${rw.W_HP}` : "–"],
+    ["league", lg.p_self != null ? `${pct(lg.p_self)} self · ${pct(lg.p_pool)} past checkpoints · ${pct(lg.p_valve)} Valve unfair` : "–"],
+    ["sides", lg.live_side || "–"], ["waves", lg.one_kind_per_wave ? "one opponent kind per wave (shared Lua config)" : "–"],
+    ["hero", "Shadow Fiend mirror, mid 1v1; skill order and starting items scripted"],
+  ]);
 
-  const kind = (o) => o ? (Object.entries(o).find(([, v]) => v.some((x) => x > 0)) || ["–"])[0] : "–";
-  const wdl = (o) => { const k = kind(o); return k === "–" ? "–" : o[k].join("–"); };
+  $("fleet-sub").textContent = inst.length ? `· ${alive} of ${inst.length} servers alive · click a server for details` : "· no fleet status in the snapshot";
+  $("fleet").innerHTML = inst.map(instCard).join("");
+  for (const el of document.querySelectorAll(".inst")) el.onclick = () => openDetail(Number(el.dataset.i));
+  if (selected != null) renderDetail();
+
+  $("evals").innerHTML = evals.slice().reverse().map((i) => { const e = i.eval; return `<tr><td>${i.iteration}</td>
+    <td>${e.last_hits_passive}</td><td>${e.level_passive}</td><td>${pct(e.win_rate_passive)}</td><td>${pct(e.draw_rate_passive)}</td>
+    <td>${e.last_hits_unfair}</td><td>${e.level_unfair}</td><td>${pct(e.win_rate_unfair)}</td><td>${pct(e.draw_rate_unfair)}</td></tr>`; }).join("") || "<tr><td colspan=9 class=muted>no evaluation yet</td></tr>";
   $("its").innerHTML = its.slice().reverse().map((i) => {
-    const e = i.eval || {};
-    return `<tr class="${i.eval ? "ev" : ""} ${i.error || i.skipped ? "bad" : ""}"><td>${i.iteration}</td><td>${i.skipped ? "skipped: " + i.skipped : kind(i.outcomes)}</td>
-      <td>${i.steps ?? "–"}</td><td>${(i.ends?.post_game_log ?? 0)} / ${(i.ends?.cap ?? 0)}</td><td>${wdl(i.outcomes)}</td>
-      <td>${i.mean_last_hits != null ? i.mean_last_hits.toFixed(1) : "–"}</td><td>${i.kl_anchor != null ? i.kl_anchor.toFixed(3) : "–"}</td><td>${i.update_wall_s ?? "–"}</td>
-      <td>${i.eval ? `${e.last_hits_passive} · ${pct(e.draw_rate_passive)}` : ""}</td><td>${i.eval ? `${e.last_hits_unfair} · ${pct(e.win_rate_unfair)} · ${pct(e.draw_rate_unfair)}` : ""}</td></tr>`;
+    const k = kindOf(i.outcomes), w = k === "–" ? "–" : i.outcomes[k].join("–");
+    return `<tr class="${i.eval ? "ev" : ""} ${i.error || i.skipped ? "bad" : ""}"><td>${i.iteration}</td><td>${i.skipped ? "skipped: " + esc(i.skipped) : i.error ? "error: " + esc(i.error) : k}</td>
+      <td>${i.steps ?? "–"}</td><td>${i.trajectories ?? "–"}</td><td>${i.ends?.post_game_log ?? 0} / ${i.ends?.cap ?? 0}</td><td>${w}</td>
+      <td>${f1(i.mean_last_hits)}</td><td>${i.mean_return != null ? Number(i.mean_return).toFixed(3) : "–"}</td><td>${i.loss_pi != null ? Number(i.loss_pi).toFixed(4) : "–"}</td><td>${i.loss_v != null ? Number(i.loss_v).toFixed(4) : "–"}</td>
+      <td>${f3(i.entropy)}</td><td>${f3(i.kl_anchor)}</td><td>${i.clipfrac != null ? pct(i.clipfrac) : "–"}</td><td>${i.speed_x != null ? f1(i.speed_x) + "x" : "–"}</td><td>${i.act_ms ?? "–"}</td><td>${i.update_wall_s ?? i.wall_s ?? "–"}</td><td>${i.lua_timeouts ?? "–"}</td></tr>`;
   }).join("");
-  chart(its);
+  charts(its);
+}
+const dl = (rows) => rows.map(([k, v]) => `<dt>${esc(k)}</dt><dd>${esc(v ?? "–")}</dd>`).join("");
+
+function instCard(i) {
+  const t2 = i.teams?.[2] || {}, t3 = i.teams?.[3] || {};
+  const cap = i.cap_s || 300, prog = Math.min(1, Math.max(0, (i.game_time || 0) / cap));
+  const live = i.live_side === "both" ? "both sides live" : i.live_side ? `live as ${i.live_side === 2 ? "Radiant" : "Dire"}` : "";
+  return `<div class="inst ${i.phase === "dead" ? "dead" : ""}" data-i="${i.index}">
+    <div class="top"><span class="idx">#${i.index} <span class="muted">${esc(i.phase)}</span></span><span class="badge ${esc(i.kind || "")}">${esc(i.kind || "game")}</span></div>
+    <div class="bar"><i style="width:${(prog * 100).toFixed(0)}%"></i></div>
+    <div class="vs"><div class="r">${esc(t2.hero || i.heroes?.[2] || "radiant")}<div class="hp"><i style="width:${hpw(t2)}%;background:var(--rad)"></i></div></div>
+      <div class="m">${mmss(i.game_time)}</div>
+      <div class="d">${esc(t3.hero || i.heroes?.[3] || "dire")}<div class="hp"><i style="width:${hpw(t3)}%;background:var(--dire)"></i></div></div></div>
+    <div class="vs" style="margin-top:4px"><div class="r">${i.kills?.[2] ?? 0} k · ${lh(i.last_hits?.[2])} lh · L${t2.level ?? "?"}</div><div class="m">${live}</div><div class="d">L${t3.level ?? "?"} · ${lh(i.last_hits?.[3])} lh · ${i.kills?.[3] ?? 0} k</div></div>
+    <div class="meta"><span>${i.speed_x ?? "–"}x · ep ${i.episode}</span><span>${i.lua_timeouts ?? 0} t/o · cpu ${Math.round(i.cpu ?? 0)}%</span></div>
+    ${i.last_error ? `<div class="meta" style="color:var(--dire)">${esc(i.last_error).slice(0, 80)}</div>` : ""}
+  </div>`;
+}
+const hpw = (t) => t.hp_max ? Math.round(100 * t.hp / t.hp_max) : 0;
+const lh = (v) => v == null || v < 0 ? "–" : v;
+
+function openDetail(i) { selected = i; $("overlay").style.display = "block"; $("drawer").style.display = "block"; renderDetail(); if (LOCAL) pollMap(); }
+function closeDetail() { selected = null; $("overlay").style.display = "none"; $("drawer").style.display = "none"; }
+$("overlay").onclick = closeDetail; $("close").onclick = closeDetail;
+
+function renderDetail() {
+  const i = (D.status.instances || []).find((x) => x.index === selected);
+  if (!i) { $("detail").innerHTML = "<p class=muted>no data for this server</p>"; return; }
+  const t2 = i.teams?.[2] || {}, t3 = i.teams?.[3] || {};
+  const policy = (side) => i.kind === "self" ? "live network" : i.live_side === side ? "live network" : i.kind === "valve" ? "Valve bot (unfair)" : i.kind === "pool" ? (i.opponent || "pool checkpoint") : (side === 2 ? t2.role : t3.role) || "–";
+  const hero = (t, side, cls) => `<div class="hero ${cls}"><div class="name"><span>${esc(t.hero || "–")} <span class="muted">${side === 2 ? "Radiant" : "Dire"}</span></span><span class="muted">${esc(policy(side))}</span></div>
+    <div class="hp" style="height:6px;margin-top:6px"><i style="width:${hpw(t)}%;background:${side === 2 ? "var(--rad)" : "var(--dire)"}"></i></div>
+    <div class="stats"><div><span>hp</span> ${t.hp ?? "–"}/${t.hp_max ?? "–"}</div><div><span>level</span> ${t.level ?? "–"}</div><div><span>alive</span> ${t.alive == null ? "–" : t.alive ? "yes" : "dead"}</div>
+    <div><span>kills</span> ${t.kills ?? 0}</div><div><span>deaths</span> ${t.deaths ?? 0}</div><div><span>last hits</span> ${lh(t.last_hits)}</div>
+    <div><span>denies</span> ${lh(t.denies)}</div><div><span>gold</span> ${t.gold ?? "–"}</div><div><span>net worth</span> ${t.net_worth == null || t.net_worth < 0 ? "–" : t.net_worth}</div>
+    <div><span>position</span> ${t.x ?? "–"}, ${t.y ?? "–"}</div></div></div>`;
+  const cap = i.cap_s || 300;
+  $("detail").innerHTML = `
+    <h2>Server #${i.index} · ${esc(i.phase)} · episode ${i.episode}</h2>
+    <dl style="margin-bottom:10px">
+      <dt>wave</dt><dd>${D.status.meta?.iteration ?? "–"} · ${esc(i.kind || "–")} game${i.opponent ? ` vs ${esc(i.opponent)}` : ""}${i.live_side ? ` · live network plays ${i.live_side === "both" ? "both sides" : i.live_side === 2 ? "Radiant" : "Dire"}` : ""}</dd>
+      <dt>game clock</dt><dd>${mmss(i.game_time)} of ${mmss(cap)} cap · ${i.speed_x ?? "–"}x real time · decision every ${i.frames ?? "–"} ticks · ${i.steps ?? "–"} decisions this episode</dd>
+      <dt>lockstep</dt><dd>${i.lua_timeouts ?? 0} Lua timeouts · ${i.lua_mismatch ?? 0} target mismatches</dd>
+      <dt>process</dt><dd>pid ${i.pid ?? "–"} · cpu ${Math.round(i.cpu ?? 0)}% · ${i.rss_mb ?? "–"} MB</dd>
+      ${i.last_error ? `<dt>last error</dt><dd style="color:var(--dire);white-space:normal">${esc(i.last_error)}</dd>` : ""}
+    </dl>
+    <div class="bar" style="height:8px"><i style="width:${Math.min(100, 100 * (i.game_time || 0) / cap).toFixed(0)}%"></i></div>
+    <div class="grid2" style="grid-template-columns:1fr 1fr">${hero(t2, 2, "r")}${hero(t3, 3, "d")}</div>
+    <h2>Minimap</h2>
+    <canvas id="map" width="480" height="480"></canvas>
+    <div class="legend" id="mapinfo">${LOCAL ? "live, polled every half second" : "snapshot from the last publish (up to a minute old)"}</div>`;
+  drawMap(D.maps?.[String(i.index)]);
+}
+async function pollMap() {
+  if (selected == null || !LOCAL) return;
+  try { const r = await fetch(`run/ws_${selected}.json?t=${Date.now()}`, { cache: "no-store" }); if (r.ok) { const w = await r.json(); D.maps[String(selected)] = w; drawMap(w); } } catch {}
+  setTimeout(pollMap, 500);
+}
+function drawMap(w) {
+  const c = $("map"); if (!c) return; const ctx = c.getContext("2d"), LIM = 8000, S = c.width / (2 * LIM);
+  const px = (x) => (x + LIM) * S, py = (y) => (LIM - y) * S;
+  ctx.clearRect(0, 0, c.width, c.height);
+  ctx.strokeStyle = "#1f2a1f"; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(0, c.height); ctx.lineTo(c.width, 0); ctx.stroke();
+  if (!w) { ctx.fillStyle = "#666"; ctx.font = "13px system-ui"; ctx.fillText("no minimap snapshot for this server yet", 110, 240); return; }
+  for (const [x, y, team, kind, hp] of w.units) {
+    const col = team === 2 ? "#4fc36a" : team === 3 ? "#e4574f" : "#777"; ctx.fillStyle = col; ctx.strokeStyle = col;
+    if (kind === "hero") { ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(px(x), py(y), 7, 0, 2 * Math.PI); ctx.stroke(); ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(px(x), py(y), 7, -Math.PI / 2, -Math.PI / 2 + 2 * Math.PI * hp); ctx.stroke(); }
+    else if (kind === "tower") ctx.fillRect(px(x) - 4, py(y) - 4, 8, 8);
+    else if (kind === "creep") { ctx.beginPath(); ctx.arc(px(x), py(y), 2.5, 0, 2 * Math.PI); ctx.fill(); }
+  }
+  const heroes = Object.values(w.heroes || {}).filter((h) => h.last_hits >= 0 || h.kills > 0 || h.level > 1);
+  const info = $("mapinfo"); if (info) info.textContent = `t=${mmss(w.t)} · ` + heroes.map((h) => `${h.name.replace("npc_dota_hero_", "")} (${h.team === 2 ? "R" : "D"}) hp ${h.hp}/${h.hp_max} L${h.level} lh ${h.last_hits} k ${h.kills}`).join(" · ");
 }
 
-function chart(its) {
-  const c = $("chart"), ctx = c.getContext("2d"), W = c.width, H = c.height, L = 36, R = 10, T = 10, B = 24;
-  ctx.clearRect(0, 0, W, H);
-  const pts = its.filter((i) => i.mean_last_hits != null);
-  if (!pts.length) return;
-  const maxIt = Math.max(...its.map((i) => i.iteration)), maxY = Math.max(12, ...pts.map((i) => i.mean_last_hits), ...its.filter((i) => i.eval).map((i) => Math.max(i.eval.last_hits_passive || 0, i.eval.last_hits_unfair || 0)));
-  const x = (it) => L + (it - 1) / Math.max(1, maxIt - 1) * (W - L - R), y = (v) => T + (1 - v / maxY) * (H - T - B);
-  ctx.strokeStyle = "#2a2a2a"; ctx.fillStyle = "#888"; ctx.font = "11px system-ui"; ctx.lineWidth = 1;
-  for (let v = 0; v <= maxY; v += maxY > 20 ? 5 : 2) { ctx.beginPath(); ctx.moveTo(L, y(v)); ctx.lineTo(W - R, y(v)); ctx.stroke(); ctx.fillText(v, 4, y(v) + 4); }
-  for (let it = 1; it <= maxIt; it += Math.max(1, Math.round(maxIt / 12))) ctx.fillText(it, x(it) - 3, H - 8);
-  ctx.setLineDash([4, 4]); ctx.strokeStyle = "#666"; ctx.beginPath(); ctx.moveTo(L, y(4)); ctx.lineTo(W - R, y(4)); ctx.stroke(); ctx.setLineDash([]);
-  const line = (rows, get, color) => {
-    ctx.strokeStyle = color; ctx.fillStyle = color; ctx.lineWidth = 2; ctx.beginPath(); let first = true;
-    for (const i of rows) { const v = get(i); if (v == null) continue; const X = x(i.iteration), Y = y(v); first ? ctx.moveTo(X, Y) : ctx.lineTo(X, Y); first = false; }
-    ctx.stroke();
-    for (const i of rows) { const v = get(i); if (v == null) continue; ctx.beginPath(); ctx.arc(x(i.iteration), y(v), 3, 0, 7); ctx.fill(); }
-  };
-  line(pts, (i) => i.mean_last_hits, "#6af");
-  line(its.filter((i) => i.eval), (i) => i.eval.last_hits_passive, "#5c5");
-  line(its.filter((i) => i.eval), (i) => i.eval.last_hits_unfair, "#e55");
+// ---- charts (canvas, no libraries) ----
+function setup(id) { const c = $(id), r = c.getBoundingClientRect(), dpr = window.devicePixelRatio || 1; c.width = Math.max(300, r.width) * dpr; c.height = 190 * dpr; const ctx = c.getContext("2d"); ctx.scale(dpr, dpr); return { ctx, W: c.width / dpr, H: 190 }; }
+function axes(ctx, W, H, L, R, T, B, maxX, maxY, step) {
+  ctx.strokeStyle = "#262a31"; ctx.fillStyle = "#8b8f98"; ctx.font = "11px system-ui"; ctx.lineWidth = 1;
+  const y = (v) => T + (1 - v / maxY) * (H - T - B), x = (it) => L + (maxX > 1 ? (it - 1) / (maxX - 1) : 0) * (W - L - R);
+  for (let v = 0; v <= maxY + 1e-9; v += step) { ctx.beginPath(); ctx.moveTo(L, y(v)); ctx.lineTo(W - R, y(v)); ctx.stroke(); ctx.fillText(+v.toFixed(2), 2, y(v) + 4); }
+  const sx = Math.max(1, Math.round(maxX / 10)); for (let it = 1; it <= maxX; it += sx) ctx.fillText(it, x(it) - 3, H - 6);
+  return { x, y };
 }
-load();
-setInterval(load, 60000);
+function line(ctx, rows, getX, getY, x, y, color) {
+  ctx.strokeStyle = color; ctx.fillStyle = color; ctx.lineWidth = 2; ctx.beginPath(); let first = true;
+  for (const r of rows) { const v = getY(r); if (v == null) continue; const X = x(getX(r)), Y = y(v); first ? ctx.moveTo(X, Y) : ctx.lineTo(X, Y); first = false; }
+  ctx.stroke(); for (const r of rows) { const v = getY(r); if (v == null) continue; ctx.beginPath(); ctx.arc(x(getX(r)), y(v), 2.5, 0, 7); ctx.fill(); }
+}
+function charts(its) {
+  const rows = its.filter((i) => !i.skipped && !i.error && i.steps != null); if (!rows.length) return;
+  const maxX = Math.max(...its.map((i) => i.iteration)), ev = rows.filter((i) => i.eval);
+  { const { ctx, W, H } = setup("c-lh"); const maxY = Math.max(12, ...rows.map((i) => i.mean_last_hits || 0), ...ev.map((i) => Math.max(i.eval.last_hits_passive || 0, i.eval.last_hits_unfair || 0))) * 1.05;
+    const { x, y } = axes(ctx, W, H, 30, 8, 8, 20, maxX, maxY, maxY > 20 ? 5 : 2);
+    ctx.setLineDash([4, 4]); ctx.strokeStyle = "#666"; ctx.beginPath(); ctx.moveTo(30, y(4)); ctx.lineTo(W - 8, y(4)); ctx.stroke(); ctx.setLineDash([]);
+    line(ctx, rows, (i) => i.iteration, (i) => i.mean_last_hits, x, y, "#6aa8ff"); line(ctx, ev, (i) => i.iteration, (i) => i.eval.last_hits_passive, x, y, "#4fc36a"); line(ctx, ev, (i) => i.iteration, (i) => i.eval.last_hits_unfair, x, y, "#e4574f"); }
+  { const { ctx, W, H } = setup("c-out"); const { x, y } = axes(ctx, W, H, 30, 8, 8, 20, maxX, 12, 4); const bw = Math.max(2, (W - 38) / Math.max(maxX, 1) * 0.7);
+    for (const i of rows) { const k = kindOf(i.outcomes); if (k === "–") continue; const [w, d, l] = i.outcomes[k]; let base = 0; const X = x(i.iteration) - bw / 2;
+      for (const [n, col] of [[w, "#4fc36a"], [d, "#555c66"], [l, "#e4574f"]]) { ctx.fillStyle = col; ctx.fillRect(X, y(base + n), bw, y(base) - y(base + n)); base += n; }
+      ctx.fillStyle = "#8b8f98"; ctx.font = "10px system-ui"; ctx.fillText(k[0], X + bw / 2 - 3, H - 20 + 10); } }
+  { const { ctx, W, H } = setup("c-kl"); const maxY = Math.max(0.2, ...rows.map((i) => Math.max(i.kl_anchor || 0, i.entropy || 0))) * 1.1; const { x, y } = axes(ctx, W, H, 34, 8, 8, 20, maxX, maxY, maxY > 1 ? 0.25 : 0.05);
+    line(ctx, rows, (i) => i.iteration, (i) => i.kl_anchor, x, y, "#e8b64a"); line(ctx, rows, (i) => i.iteration, (i) => i.entropy, x, y, "#b48cff"); }
+  { const { ctx, W, H } = setup("c-thr"); const maxY = Math.max(60, ...rows.map((i) => Math.max(i.steps / 1000, i.act_ms || 0, i.update_wall_s || 0))) * 1.05; const { x, y } = axes(ctx, W, H, 30, 8, 8, 20, maxX, maxY, maxY > 200 ? 100 : 20);
+    line(ctx, rows, (i) => i.iteration, (i) => i.steps / 1000, x, y, "#6aa8ff"); line(ctx, rows, (i) => i.iteration, (i) => i.act_ms, x, y, "#e8b64a"); line(ctx, rows, (i) => i.iteration, (i) => i.update_wall_s, x, y, "#4fc36a"); }
+}
+refresh();
+setInterval(refresh, LOCAL ? 1000 : 60000);
+window.addEventListener("resize", () => charts(D.iterations));
 </script>
 </body>
 </html>

@@ -16,14 +16,31 @@ KEEP = ("iteration", "skipped", "steps", "ends", "outcomes", "mean_last_hits", "
 REPO = Path(__file__).resolve().parents[1]
 
 
+DROP = ("traceback", "error_samples")
+
+
+def _read_json(path: Path):
+    try:
+        return json.loads(path.read_text())
+    except (OSError, json.JSONDecodeError):
+        return None
+
+
 def snapshot(run: Path) -> dict:
     out = {"run": run.name, "published": time.strftime("%Y-%m-%dT%H:%M:%S%z"), "iterations": []}
-    st = run / "run" / "status.json"
-    if st.exists():
-        try:
-            out["status"] = json.loads(st.read_text())
-        except json.JSONDecodeError:
-            pass
+    st = _read_json(run / "run" / "status.json")
+    if st:
+        out["status"] = st
+    cfg = _read_json(run / "config.json")
+    if cfg:
+        out["config"] = cfg
+    maps = {}
+    for f in sorted((run / "run").glob("ws_*.json")):
+        m = _read_json(f)
+        if m:
+            maps[f.stem.split("_")[1]] = m
+    if maps:
+        out["maps"] = maps
     log = run / "log.jsonl"
     if log.exists():
         for line in log.read_text().splitlines()[-200:]:
@@ -31,7 +48,7 @@ def snapshot(run: Path) -> dict:
                 d = json.loads(line)
             except json.JSONDecodeError:
                 continue
-            out["iterations"].append({k: d.get(k) for k in KEEP if k in d})
+            out["iterations"].append({k: v for k, v in d.items() if k not in DROP})
     return out
 
 

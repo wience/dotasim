@@ -50,21 +50,26 @@ class SyncFleet:
         self.errors: list[str] = []
         self.act_ms: list[float] = []
         self._t0 = 0.0
+        self.labels: dict[int, dict] = {}   # per instance, set by the caller: kind, live_side, opponent (for the status page)
+        self.meta: dict = {}                # run-level, set by the caller: iteration, version, kind
+        self._status_n = 0
 
     # ---- status ----------------------------------------------------------
     def status(self) -> dict:
         wall_h = max(time.monotonic() - self._t0, 1e-6) / 3600
         return {"run": self.run_dir.name, "updated": datetime.now(timezone.utc).isoformat(timespec="seconds"),
-                "instances": [e.status for e in self.envs],
+                "instances": [{**e.status, **self.labels.get(i, {})} for i, e in enumerate(self.envs)], "meta": self.meta,
                 "totals": {"episodes": self.episodes, "steps": self.steps, "games_per_hour": round(self.episodes / wall_h, 1),
                            "infer_ms_mean": round(statistics.fmean(self.act_ms), 3) if self.act_ms else 0.0,
                            "lua_timeouts": self.lua_timeouts, "errors": len(self.errors)}}
 
     def _write_status(self) -> None:
         _atomic_write(self.run_dir / "status.json", json.dumps(self.status()))
-        ws = self.envs[0].last_ws
-        if ws is not None:
-            _atomic_write(self.run_dir / "ws_0.json", json.dumps(ws.reduced()))
+        self._status_n += 1
+        for i, env in enumerate(self.envs):   # instance 0 every second, the others every third second (the run dir is on /mnt/c)
+            ws = env.last_ws
+            if ws is not None and (i == 0 or self._status_n % 3 == 0):
+                _atomic_write(self.run_dir / f"ws_{i}.json", json.dumps(ws.reduced()))
 
     # ---- episodes --------------------------------------------------------
     async def _reset(self, i: int, delay: float) -> None:

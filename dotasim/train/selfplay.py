@@ -140,6 +140,9 @@ async def run_iteration(cfg: SelfPlayConfig, live: NetPolicy, league: League, ve
     col.version = version
     fleet = SyncFleet(n, matchup_for_env, policy_for, cfg.out / "run", dota_dir=cfg.dota_dir, timescale=cfg.timescale,
                       tv=False)   # replays only for evaluation games
+    opp_name = getattr(opponent, "name", None) or ("valve unfair" if kind == "valve" else ("self (same network)" if kind == "self" else "pool"))
+    fleet.labels = {i: {"kind": kinds[i], "live_side": "both" if kinds[i] == "self" else live_team(i), "opponent": opp_name} for i in range(n)}
+    fleet.meta = {"iteration": it + 1, "version": version, "kind": kind}
     totals = await fleet.run(episodes_total=n, on_step=col)
     return col.buf, totals, col.outcomes
 
@@ -179,6 +182,25 @@ def _update_in_subprocess(cfg: SelfPlayConfig, net: Policy, anchor: Policy, wind
     return res["stats"], res["opt_state"]
 
 
+def _write_config(cfg: SelfPlayConfig) -> None:
+    """Everything the status page needs to say what kind of training this is."""
+    import dataclasses
+    import subprocess
+    from dotasim.train import league as L, reward as Rw
+    try:
+        sha = subprocess.run(["git", "rev-parse", "--short", "HEAD"], capture_output=True, text=True, cwd=Path(__file__).parent).stdout.strip()
+    except OSError:
+        sha = ""
+    d = {k: (str(v) if isinstance(v, Path) else v) for k, v in dataclasses.asdict(cfg).items()}
+    d["reward"] = {"W_LH": Rw.W_LH, "W_DN": Rw.W_DN, "W_LVL": Rw.W_LVL, "W_NW": Rw.W_NW, "W_HP": Rw.W_HP, "gamma": Rw.GAMMA,
+                   "terminal": "+1 win / -1 loss (fort destroyed), 0 at the cap", "shaping": "own progress, absolute; hp difference relative"}
+    d["league"] = {"p_self": L.P_SELF, "p_pool": L.P_POOL, "p_valve": L.P_VALVE, "one_kind_per_wave": True, "live_side": "alternates vs pool and Valve"}
+    d["threads"] = {"rollout": ROLLOUT_THREADS, "update": UPDATE_THREADS}
+    d["git"] = sha
+    d["started"] = time.strftime("%Y-%m-%dT%H:%M:%S%z")
+    (cfg.out / "config.json").write_text(json.dumps(d, indent=1))
+
+
 async def train_selfplay(cfg: SelfPlayConfig) -> dict:
     cfg.out = Path(cfg.out)
     cfg.out.mkdir(parents=True, exist_ok=True)
@@ -191,6 +213,7 @@ async def train_selfplay(cfg: SelfPlayConfig) -> dict:
     opt = torch.optim.Adam(learner.parameters(), lr=cfg.ppo.lr)
     writer = SummaryWriter(str(cfg.out / "tb"))
     log = open(cfg.out / "log.jsonl", "a")
+    _write_config(cfg)
     version = 0
     t_start = time.time()
     last_eval: dict = {}
