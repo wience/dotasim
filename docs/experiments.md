@@ -275,3 +275,10 @@ measured over 10 s, unchanged by HSA_ENABLE_INTERRUPT and the other usual knobs)
 pre-game exactly like a cold wave (the "cold WSL" story above was at most half right). Fix: the update runs in a
 separate short-lived process (`dotasim/train/gpu_learner.py`, `--learner-python ~/dotasim-rocm-venv/bin/python`);
 the rollout process never touches ROCm. Checked on synthetic windows: two updates in 28.8 s including process start.
+
+## 2026-10-25 sp_v9: GPU learner in its own process, replays off, sides alternating
+
+From `runs/sp_v8/policy.pt` (iteration 7). Iteration 1: 39,845 steps, 17 ms per 12-game decision, 5.1x per server
+(3.3 to 3.9x in sp_v8 with replays on), GPU update 18.6 s including the subprocess start (about 150 s on the CPU).
+An iteration is now about 95 s instead of 230. Iteration 2 drew a Valve wave: 0 wins, 4 draws, 8 losses vs unfair,
+mean return -0.39, the baseline to beat.
