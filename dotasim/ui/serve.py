@@ -19,6 +19,7 @@ def main(argv=None):
     web = HERE.parent.parent / "web" / "index.html"   # the full dashboard; it reads run/status.json, log.jsonl, config.json
     if web.exists():
         shutil.copy(web, run / "index.html")
+    (run / "meta.json").write_text('{"run": "%s"}' % run.resolve().name)   # the dashboard shows the run's name
 
     class Handler(http.server.SimpleHTTPRequestHandler):
         def __init__(self, *args, **kw):

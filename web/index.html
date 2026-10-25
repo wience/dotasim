@@ -126,7 +126,7 @@ async function loadLive() {
 }
 async function loadLocal(full) {
   const get = async (p, json = true) => { const r = await fetch(`${p}?t=${Date.now()}`, { cache: "no-store" }); if (!r.ok) return null; return json ? r.json() : r.text(); };
-  const out = { run: location.pathname.split("/").filter(Boolean).pop() || "local", published: new Date().toISOString(), status: await get("run/status.json") || {} };
+  const out = { run: (await get("meta.json") || {}).run || "local", published: new Date().toISOString(), status: await get("run/status.json") || {} };
   if (full || !D.config || !Object.keys(D.config).length) {
     out.config = await get("config.json") || {};
     const log = await get("log.jsonl", false);
