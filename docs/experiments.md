@@ -212,3 +212,8 @@ before the final state, so any winner read from the worldstate is unreliable. Th
 source (`Instance.winner`, `info["winner"]`), with the worldstate rule as a fallback. sp_v6 (one iteration, draws
 again) discarded; sp_v7 restarted from bc_v2. Every finished episode's console tail is kept under
 `runs/<run>/run/end_logs/` from now on.
+
+sp_v7 (fort-line winner): iteration 1 46,047 steps, 4 games finished, outcomes 2 wins 2 losses 8 draws; iteration 2
+41,413 steps, 10 finished, 7 wins 3 losses 2 draws (team 2's view). Wins plus losses equal finished games for the first
+time, so the terminal reward reaches PPO from here on. Mean last hits per self-play game 8.6 then 6.0 (shorter games
+once fights start). Eval every 5 iterations; log at `runs/sp_v7/log.jsonl`.
