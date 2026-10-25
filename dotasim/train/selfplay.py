@@ -126,7 +126,8 @@ async def run_iteration(cfg: SelfPlayConfig, live: NetPolicy, league: League, ve
 
     col = _Collector(live, policy_for, kinds, cfg.ppo.gamma, trace)
     col.version = version
-    fleet = SyncFleet(n, matchup_for_env, policy_for, cfg.out / "run", dota_dir=cfg.dota_dir, timescale=cfg.timescale)
+    fleet = SyncFleet(n, matchup_for_env, policy_for, cfg.out / "run", dota_dir=cfg.dota_dir, timescale=cfg.timescale,
+                      tv=False)   # replays only for evaluation games
     totals = await fleet.run(episodes_total=n, on_step=col)
     return col.buf, totals, col.outcomes
 

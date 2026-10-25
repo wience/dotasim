@@ -33,13 +33,14 @@ def _atomic_write(path: Path, text: str) -> None:
 
 class SyncFleet:
     def __init__(self, n: int, matchup_for_env: Callable[[int], Matchup], policy_for: Callable[[int, int], object | None],
-                 run_dir: Path, dota_dir: Path | None = None, timescale: float = 10, stagger_s: float = 2.0):
+                 run_dir: Path, dota_dir: Path | None = None, timescale: float = 10, stagger_s: float = 2.0,
+                 tv: bool = True):
         dota = Path(dota_dir or os.environ.get("DOTASIM_DOTA_DIR", "~/dota2")).expanduser()
         self.run_dir = Path(run_dir)
         self.run_dir.mkdir(parents=True, exist_ok=True)
         bots = install_scripts(dota)
         self.matchup_for_env, self.policy_for, self.stagger_s = matchup_for_env, policy_for, stagger_s
-        self.envs = [DotaEnv(InstanceConfig(index=i, dota_dir=dota, timescale=timescale, run_dir=self.run_dir), bots)
+        self.envs = [DotaEnv(InstanceConfig(index=i, dota_dir=dota, timescale=timescale, run_dir=self.run_dir, tv=tv), bots)
                      for i in range(n)]
         self.obs: dict[int, dict[int, WorldState]] = {}       # env -> teams whose worldstate awaits a decision
         self.resets: dict[int, asyncio.Task] = {}

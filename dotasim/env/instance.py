@@ -35,6 +35,7 @@ class InstanceConfig:
     frames: int = 10
     difficulty: int = 4
     run_dir: Path = Path("runs/current")
+    tv: bool = True   # SourceTV recording: a third of a server's CPU (85% -> 56% measured); off for training rollouts
     extra_args: list[str] = field(default_factory=list)  # appended verbatim to the launch line
 
     @property
@@ -77,8 +78,8 @@ class InstanceConfig:
             "-botworldstatetosocket_frames", str(self.frames), "-botworldstatesocket_threaded",
             "+dota_auto_surrender_all_disconnected_timeout", "180",
             # SourceTV: lets a real client spectate (connect <ip>:<tv_port>) and records replays
-            "+tv_enable", "0" if os.environ.get("DOTASIM_NO_TV") else "1", "+tv_port", str(self.tv_port), "+tv_delay", "0",
-            "+tv_autorecord", "0" if os.environ.get("DOTASIM_NO_TV") else "1",
+            "+tv_enable", "1" if self.tv else "0", "+tv_port", str(self.tv_port), "+tv_delay", "0",
+            "+tv_autorecord", "1" if self.tv else "0",
             *self.extra_args,
         ]
 

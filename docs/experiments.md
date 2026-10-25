@@ -238,3 +238,14 @@ sp_v8 (absolute own-progress shaping) iteration 5: all 12 self-play games decide
 team 2's view (balanced for the first time), mean return 0.16 and rising; eval vs passive median 8 last hits, level 4,
 3 of 6 games without a death; vs unfair 3.5 last hits, no wins. Same point in sp_v7: 3.5 and 3.0 with a death in
 every game. Decision point for the shaping change: iteration 20 (where sp_v7 had collapsed to idling).
+
+## 2026-10-25 Game-side waste (one server, 90 s games, bc_v2 both sides)
+
+| setting | dota2 mean CPU% | wall for the episode |
+|---|---|---|
+| SourceTV recording on (the default so far) | 85 | 28.6 s |
+| SourceTV off | 56 | 31.5 s |
+
+A third of a server's CPU went to recording replays nobody watched during training. Self-play rollouts now launch
+with `tv=False`; evaluation games keep recording so they can be watched. Launching without `-fill_with_bots`
+produced no game at all (empty console log, three failed resets); the eight fillers stay for now.

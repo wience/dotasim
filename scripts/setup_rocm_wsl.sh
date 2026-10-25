@@ -7,13 +7,21 @@
 # outside AMD's 22.04/24.04 matrix: the noble (24.04) installer is used; the WSL use case needs no kernel module.
 set -euo pipefail
 cd /tmp
-if ! command -v rocminfo >/dev/null; then
-  sudo apt update
-  wget -q https://repo.radeon.com/amdgpu-install/7.2/ubuntu/noble/amdgpu-install_7.2.70200-1_all.deb
-  sudo apt install -y ./amdgpu-install_7.2.70200-1_all.deb
-  sudo amdgpu-install -y --usecase=wsl,rocm --no-dkms
+ROCMINFO=/opt/rocm/bin/rocminfo
+if [ "$(id -u)" = "0" ]; then
+  # system half, run as root:  wsl.exe -d Ubuntu -u root -- bash <this script>
+  if [ ! -x "$ROCMINFO" ]; then
+    apt update
+    [ -f amdgpu-install_7.2.70200-1_all.deb ] || wget -q https://repo.radeon.com/amdgpu-install/7.2/ubuntu/noble/amdgpu-install_7.2.70200-1_all.deb
+    apt install -y ./amdgpu-install_7.2.70200-1_all.deb
+    amdgpu-install -y --usecase=wsl,rocm --no-dkms
+  fi
+  $ROCMINFO | grep -E "Name:|gfx" | head -8
+  echo "system half done; now run the same script as the normal user for the venv"
+  exit 0
 fi
-rocminfo | grep -E "Name:|gfx" | head -8
+[ -x "$ROCMINFO" ] || { echo "ROCm not installed yet: run this script as root first (wsl.exe -d Ubuntu -u root -- bash $0)"; exit 1; }
+$ROCMINFO | grep -E "Name:|gfx" | head -8
 VENV=$HOME/dotasim-rocm-venv
 if [ ! -x "$VENV/bin/python" ]; then
   ~/.local/bin/uv venv --python 3.12 "$VENV"

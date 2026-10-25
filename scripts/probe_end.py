@@ -28,6 +28,6 @@ async def main():
             for l in tail[-12:]:
                 print("   |", l[:160])
     r = await f.run(1, on_step=on_step)
-    print({k: r[k] for k in ("episodes", "steps", "lua_timeouts")}, "wall", round(time.time() - t0, 1))
+    print({k: r[k] for k in ("episodes", "steps", "lua_timeouts")}, "wall", round(time.time() - t0, 1), "errors", r.get("errors", [])[:3])
 
 asyncio.run(main())

@@ -79,11 +79,25 @@ end
 
 local macro = require("bots/macro")
 
+-- Stats the worldstate lacks (last hits, denies, gold, net worth, level) for every configured hero on a team.
+-- Printed by the observer filler and by the controlled bot itself, so a server without fillers still reports them.
+local function report_allies(token, team, cfg)
+    for i = 1, 5 do
+        local u = GetTeamMember(i)
+        if u ~= nil and (cfg.heroes or {})[u:GetPlayerID()] ~= nil then
+            print(string.format("LUAALLY token=%s team=%d pid=%d lh=%d dn=%d gold=%d nw=%d lvl=%d",
+                token, team, u:GetPlayerID(), safe(u, "GetLastHits"), safe(u, "GetDenies"),
+                safe(u, "GetGold"), safe(u, "GetNetWorth"), safe(u, "GetLevel")))
+        end
+    end
+end
+
 local function step(st)
     local bot = st.bot
     local now = DotaTime()
     st.ticks = (st.ticks or 0) + 1
     if st.ticks % 30 == 0 then macro.tick(bot) end
+    if st.ticks % OBS_EVERY_TICKS == 0 then report_allies(st.token, st.team, st.cfg) end
     if st.calib == nil then
         local c = M.load_table("calib_" .. st.token)
         if c and c.t then st.calib = c.t; st.n = c.n or st.n end
@@ -129,18 +143,10 @@ function M.make_think(bot)
         local n = 0
         return function()
             n = n + 1
-            if n % OBS_EVERY_TICKS ~= 0 then return end
-            for i = 1, 5 do
-                local u = GetTeamMember(i)
-                if u ~= nil and (cfg.heroes or {})[u:GetPlayerID()] ~= nil then
-                    print(string.format("LUAALLY token=%s team=%d pid=%d lh=%d dn=%d gold=%d nw=%d lvl=%d",
-                        token, team, u:GetPlayerID(), safe(u, "GetLastHits"), safe(u, "GetDenies"),
-                        safe(u, "GetGold"), safe(u, "GetNetWorth"), safe(u, "GetLevel")))
-                end
-            end
+            if n % OBS_EVERY_TICKS == 0 then report_allies(token, team, cfg) end
         end
     end
-    local st = { token = token, team = team, bot = bot, n = cfg.frames or 10, calib = nil,
+    local st = { token = token, team = team, bot = bot, cfg = cfg, n = cfg.frames or 10, calib = nil,
                  waits = 0, exec = 0, timeouts = 0, mismatch = 0, errs = 0 }
     return function()
         local ok, err = pcall(step, st)
