@@ -199,3 +199,8 @@ finished game had exactly one death (ended at 89, 120, 187, 198 s), so on this b
 death, while `winner()` demanded two kills. That is why sp_v4 was "all draws" too: the loss signal never reached PPO.
 Fixed: fewer deaths wins once the game has ended (a death to the tower credits no kill), tower rule as fallback.
 sp_v5 restarted from bc_v2 with the fix; log at `runs/sp_v5/log.jsonl`, eval every 5 iterations.
+
+Relaunch with the fix: iteration 1 44,418 steps, 26 ms decisions, ends 6 by death and 6 at the cap, outcomes 3 wins
+9 draws 0 losses from team 2's view; iteration 2 similar (7 by death, 1 win). Open: half of the death-ended games
+still resolve as draws, so the last worldstate before the stream closes sometimes predates the death counter; the
+console log's kill line would be the reliable source.
