@@ -76,8 +76,11 @@ TensorBoard: `tensorboard --logdir runs` then http://localhost:6006.
 ## Phase 3: self-play
 
 ```bash
-python -m dotasim.train.selfplay --init runs/bc_v2/policy.pt --instances 12 --iterations 300 --cap 300 --out runs/sp_v9 --eval-every 5 \n    --device cuda --learner-python ~/dotasim-rocm-venv/bin/python   # GPU update in its own process; drop both flags for CPU only
+python -m dotasim.train.selfplay --init runs/bc_v2/policy.pt --instances 12 --iterations 300 --cap 300 --out runs/sp_v9 --eval-every 5 --device cuda --learner-python ~/dotasim-rocm-venv/bin/python
 ```
+
+The two flags run the PPO update on the GPU in a separate process (`scripts/setup_rocm_wsl.sh` installs ROCm 7.2 and
+AMD's PyTorch wheels into `~/dotasim-rocm-venv`); drop them for CPU only. Rollouts always run on the CPU.
 
 Each iteration plays one episode per server (league: 70% self, 20% past checkpoint, 10% Valve unfair),
 runs one PPO update, and logs a JSON line to `runs/sp_v1/log.jsonl`.
