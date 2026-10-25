@@ -233,3 +233,8 @@ iteration 20 the agent stays in the fountain: 10 of 12 self-play games reach the
 potential was mine minus the enemy's on every term, which is zero-sum in self-play, so mutual idling scores like mutual
 farming while a death costs 1.5. Decision (one change): own last hits, denies, level and net worth in absolute terms,
 hp difference kept. Golden trace regenerated. sp_v8 from bc_v2.
+
+sp_v8 (absolute own-progress shaping) iteration 5: all 12 self-play games decided by a fight, 6 wins 6 losses from
+team 2's view (balanced for the first time), mean return 0.16 and rising; eval vs passive median 8 last hits, level 4,
+3 of 6 games without a death; vs unfair 3.5 last hits, no wins. Same point in sp_v7: 3.5 and 3.0 with a death in
+every game. Decision point for the shaping change: iteration 20 (where sp_v7 had collapsed to idling).
