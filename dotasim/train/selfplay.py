@@ -65,7 +65,7 @@ class _Collector:
         self.buf = Buffer()
         self.pending: dict[tuple[int, int], tuple[dict, WorldState]] = {}
         self.last_ws: dict[tuple[int, int], WorldState] = {}
-        self.outcomes = {"self": [0, 0, 0], "pool": [0, 0, 0], "valve": [0, 0, 0]}   # win, draw, loss for team 2
+        self.outcomes = {"self": [0, 0, 0], "pool": [0, 0, 0], "valve": [0, 0, 0]}   # win, draw, loss: live side (team 2 for self)
         self.trace = trace
         self.version = 0
 
@@ -99,7 +99,8 @@ class _Collector:
             last_value = self.live.value_of(i, team, newest) if (capped and newest is not None) else 0.0
             self.buf.finish(i, team, terminal_reward(team, w), err, last_value, capped=capped)
         if not err:
-            self.outcomes[self.kinds[i]][0 if w == 2 else (1 if w is None else 2)] += 1
+            view = 2 if self.kinds[i] == "self" else live_teams[0]
+            self.outcomes[self.kinds[i]][0 if w == view else (1 if w is None else 2)] += 1
         for key in [k for k in self.last_ws if k[0] == i]:
             del self.last_ws[key]
         for key in [k for k in self.pending if k[0] == i]:
@@ -115,12 +116,19 @@ async def run_iteration(cfg: SelfPlayConfig, live: NetPolicy, league: League, ve
     kinds: dict[int, str] = {i: kind for i in range(n)}
     opponents: dict[int, NetPolicy | None] = {i: opponent for i in range(n)}
 
+    def live_team(i: int) -> int:
+        # Dire wins most mirrors on this map, so the live side alternates: per env against pool checkpoints, per wave
+        # against Valve (the Valve role lives in the shared config.lua, so it cannot differ within a wave).
+        return 2 if (it if kind == "valve" else i) % 2 == 0 else 3
+
     def matchup_for_env(i: int) -> Matchup:
-        roles = {0: "controlled", 5: "valve" if kinds[i] == "valve" else "controlled"}
+        roles = {0: "controlled", 5: "controlled"}
+        if kinds[i] == "valve":
+            roles[5 if live_team(i) == 2 else 0] = "valve"
         return Matchup(heroes={0: SF, 5: SF}, roles=roles, frames=cfg.frames, difficulty=cfg.difficulty, cap_s=cfg.cap_s)
 
     def policy_for(i: int, team: int):
-        if team == 2 or kinds[i] == "self":
+        if kinds[i] == "self" or team == live_team(i):
             return live
         return opponents[i]   # pool opponent, or None for Valve
 
