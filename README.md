@@ -73,6 +73,18 @@ python -m dotasim.eval.eval --checkpoint runs/bc_v2/policy.pt --games 3 --instan
 
 TensorBoard: `tensorboard --logdir runs` then http://localhost:6006.
 
+## Dashboard
+
+`web/index.html` is one static page: KPI cards, learning curves (training last hits, both evaluations, outcomes per
+wave, KL and entropy, throughput), the training configuration, a card per server and a detail drawer with both heroes'
+stats and a live minimap.
+
+- Local, live at 1 Hz: `python -m dotasim.ui.serve runs/<run>` then http://localhost:8765/ (the plain fleet table is
+  at /status.html).
+- Hosted: https://dotasimstatus.wience.tech (Vercel, deploys from `web/` on every push to `main`). It reads
+  `live.json` from the `live` branch of this repo, which `python scripts/publish_status.py runs/<run>` rewrites in
+  place every minute from the training machine (fleet status, config, minimaps, the iteration log).
+
 ## Phase 3: self-play
 
 ```bash
