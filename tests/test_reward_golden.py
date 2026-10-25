@@ -37,7 +37,7 @@ def test_shaping_telescopes_and_matches_trace():
 
 def test_winner_from_deaths():
     ws = WorldState(team=2, dota_time=187, game_time=280, game_state=6, player_kills={0: 0, 5: 0}, player_deaths={0: 1, 5: 0})
-    assert winner(ws) == 3          # our hero died once (to the tower: no kill credited), the game ended: we lost
+    assert winner(ws) == 3          # fallback when the console gave no fort line: the team that died more lost
     ws.player_deaths = {0: 0, 5: 1}
     assert winner(ws) == 2
     ws.player_deaths = {0: 0, 5: 0}
