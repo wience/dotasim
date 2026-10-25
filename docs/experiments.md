@@ -288,3 +288,21 @@ all stalemates by iteration 8, mean return -0.1 to -0.2. Same collapse as sp_v7,
 terms, and sp_v7 had no Valve waves, so the Valve beatings are not the cause. The remaining common factor is the hp
 difference at W_HP 0.5 next to the terminal -1: farming's whole 5-minute payoff (about 0.5) is one death's cost, so
 avoidance wins. Pre-registered change applied: W_HP 0.1, nothing else. sp_v10 from `runs/sp_v8/policy.pt`.
+
+Retrospective from the logs (opponent kind per iteration, decided self-play games by side):
+
+| run | decided self games Radiant / Dire | kind sequence and self-wave last hits |
+|---|---|---|
+| sp_v7 | 51 / 82 | self only until 13; last hits 8.6 -> 3.9 over 20 iterations |
+| sp_v8 | 23 / 42 | self only; 7.5 -> 4.2 over 7 |
+| sp_v9 | 2 / 21 | Valve waves at 2, 4, 7; self-wave last hits 5.7 (3) -> 5.0 (5) -> 3.5 (6) -> 1.5 (8) |
+
+Two mechanisms are visible. (1) A Valve wave is a whole PPO update on twelve games that were all lost or drawn
+against unfair bots, with advantages normalised within the wave: the games that hid and drew get the highest
+advantages, the games that fought and died the lowest, so the update says "hide". sp_v9's decline tracks its Valve
+waves. (2) Dire wins most decided mirrors (about 60 to 65% in sp_v7 and sp_v8, 21 of 23 in sp_v9): Dire's bots
+think after Radiant's each tick, so Dire's snapshot already contains Radiant's order. Half of every self wave then
+says "engaging as Radiant loses". Pre-registered for sp_v10 at iteration 10: if the decline follows the first Valve
+wave, set P_VALVE to 0 for training (eval still measures against Valve); if Radiant's wins stay near zero, fix the
+protocol; if neither and it still collapses, raise kl_coef (0.02 let the KL drift to 0.13 in ten iterations twice).
+Note: `mean_return` carries a -(1-gamma) * sum(phi) drag that grows with farming; judge on last hits and level.
