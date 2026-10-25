@@ -25,6 +25,7 @@ from dotasim.train.reward import step_reward, terminal_reward, winner
 from dotasim.train.syncfleet import SyncFleet
 
 SF = "npc_dota_hero_nevermore"
+MIN_STEPS_PER_ENV = 1000   # a healthy 300 s wave gives about 3,000 per env; a cold-WSL wave dies in pre-game with a few hundred
 ROLLOUT_THREADS, UPDATE_THREADS = 4, 8
 
 
@@ -176,6 +177,13 @@ async def train_selfplay(cfg: SelfPlayConfig) -> dict:
         try:
             await wait_servers_exit()   # launching 12 new servers while 12 old ones exit starves the decision loop
             buf, totals, outcomes = await run_iteration(cfg, live, league, version, it)
+            if buf.steps() < MIN_STEPS_PER_ENV * cfg.instances:
+                # right after a WSL restart the first waves stall on disk and the servers quit before the horn:
+                # a few thousand pre-game steps are not worth an update (sp_v5 and sp_v9 first launches)
+                line = {"iteration": it + 1, "skipped": "cold wave", "steps": buf.steps(), "ends": totals.get("ends", {}),
+                        "wall_s": round(time.time() - t0, 1)}
+                log.write(json.dumps(line) + "\n"); log.flush(); print(json.dumps(line), flush=True)
+                continue
             windows = buf.windows(cfg.ppo.gamma, cfg.ppo.lam)
             torch.set_num_threads(UPDATE_THREADS)
             if learner is not live.net:
