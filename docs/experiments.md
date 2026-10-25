@@ -282,3 +282,9 @@ From `runs/sp_v8/policy.pt` (iteration 7). Iteration 1: 39,845 steps, 17 ms per 
 (3.3 to 3.9x in sp_v8 with replays on), GPU update 18.6 s including the subprocess start (about 150 s on the CPU).
 An iteration is now about 95 s instead of 230. Iteration 2 drew a Valve wave: 0 wins, 4 draws, 8 losses vs unfair,
 mean return -0.39, the baseline to beat.
+
+sp_v9 iterations 5 to 10: eval vs passive 2.5 then 0 last hits, level 2 then 1; vs unfair 1.5 then 0. Self waves
+all stalemates by iteration 8, mean return -0.1 to -0.2. Same collapse as sp_v7, now with absolute own-progress
+terms, and sp_v7 had no Valve waves, so the Valve beatings are not the cause. The remaining common factor is the hp
+difference at W_HP 0.5 next to the terminal -1: farming's whole 5-minute payoff (about 0.5) is one death's cost, so
+avoidance wins. Pre-registered change applied: W_HP 0.1, nothing else. sp_v10 from `runs/sp_v8/policy.pt`.
