@@ -224,3 +224,6 @@ agent stopped diving the tower and farms more than the clone (4). Self-play last
 (it 10) with more games reaching the cap. Phase 2's bar (5) is passed by the RL policy; phase 3's (50% vs unfair) is
 not: no kills yet, every eval game a draw. Anomaly: iterations 1 to 10 were all "self" waves (pool and Valve never
 drawn), checked next.
+
+Anomaly explained: the league drew opponents from `random.Random(0)`, and that sequence has no Valve wave until
+iteration 36 and its first pool wave at 13. sp_v7 keeps that sequence; the default seed is now fresh entropy.

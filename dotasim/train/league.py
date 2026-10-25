@@ -13,7 +13,8 @@ P_SELF, P_POOL, P_VALVE = 0.7, 0.2, 0.1
 
 
 class League:
-    def __init__(self, pool_dir: Path, frames: int, max_pool: int = 20, seed: int = 0):
+    def __init__(self, pool_dir: Path, frames: int, max_pool: int = 20, seed: int | None = None):
+        # seed 0 gave S x12, P, S, S, P ... and no Valve wave until iteration 36; default to fresh entropy
         self.pool_dir = Path(pool_dir)
         self.pool_dir.mkdir(parents=True, exist_ok=True)
         self.frames = frames
