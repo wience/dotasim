@@ -327,3 +327,11 @@ bc_v2 against itself, 24 games, 300 s cap (`scripts/probe_sides.py`): Radiant 8,
 decided by a fort, 48 Lua timeouts in 73,792 steps. With a fixed policy the protocol does not favour Dire either. The
 Dire dominance inside training runs (Radiant 13 / Dire 47 in sp_v11) is therefore a learned self-play dynamic, not
 the lockstep order and not the map. Branch 2 closed without a protocol change.
+
+Init check, 12 games each vs passive, 6 per side (`runs/eval_init_*`): sp_v8 iteration 5 median 2 last hits
+(games 2,2,2,1,1,3 as Radiant; 2,1,5,8,6,8 as Dire), iteration 7 median 3 (3,1,3,4,7,11; 3,2,2,3,4,6). The in-run
+"8" at sp_v8 iteration 5 was six games, all as Radiant, and does not reproduce: six-game medians are noise, and the
+RL checkpoints are not clearly ahead of the clone (3, 4, 6 in its three games). Overnight run sp_v12 therefore starts
+from bc_v2 with all three fixes (own-progress shaping, W_HP 0.1, no Valve waves), 60 iterations, evaluation every 10
+with 12 games per difficulty split across sides. Pre-registered: judge the slope over six evaluation points; if
+self farming is under 4 and the evaluation flat at 60, the next single change is 24 games per update.
