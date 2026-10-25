@@ -9,7 +9,7 @@ import torch
 
 from dotasim.train.policy import NetPolicy
 
-P_SELF, P_POOL, P_VALVE = 0.7, 0.2, 0.1
+P_SELF, P_POOL, P_VALVE = 0.8, 0.2, 0.0   # Valve waves (12 games all lost or drawn vs unfair, advantages normalised within the wave) taught hiding: sp_v9, sp_v10
 
 
 class League:

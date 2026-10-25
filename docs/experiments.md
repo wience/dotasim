@@ -306,3 +306,9 @@ says "engaging as Radiant loses". Pre-registered for sp_v10 at iteration 10: if 
 wave, set P_VALVE to 0 for training (eval still measures against Valve); if Radiant's wins stay near zero, fix the
 protocol; if neither and it still collapses, raise kl_coef (0.02 let the KL drift to 0.13 in ten iterations twice).
 Note: `mean_return` carries a -(1-gamma) * sum(phi) drag that grows with farming; judge on last hits and level.
+
+sp_v10 (W_HP 0.1) iterations 1 to 10: self-wave last hits held at 5 to 7 (6.9 at iteration 10; sp_v9 was at 3.2
+by then), Radiant/Dire decided games roughly even after iteration 5 but nearly all caps. Valve waves at 5, 7, 8. Eval
+at 10: 0 last hits and level 1 vs passive, 1.5 vs unfair, while the same policy farms 6.9 per game in self-play.
+Branch 1 of the decision tree: the Valve beatings teach avoidance of Valve-like opponents specifically. P_VALVE set to
+0 for training (0.8 self, 0.2 pool); evaluation still measures against Valve. sp_v11 from `runs/sp_v8/policy.pt`.
