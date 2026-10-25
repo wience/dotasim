@@ -181,12 +181,28 @@ class DotaEnv:
         info = self._info(error)
         if done:
             info["end"] = end   # why the episode ended; the self-play log counts these per iteration
+            self._dump_end_log(end)
         if done and not error:
             ws0 = next((tm.last for tm in self._teams.values() if tm.last is not None), None)
             ended = (ws0 is not None and ws0.game_state == POST_GAME) or self.instance.post_game_seen
             info["post_game"] = bool(ended)                 # the game itself ended (kills or tower)
             info["capped"] = not ended                       # we stopped it at cap_s
         return obs, done, info
+
+    def _dump_end_log(self, end: str | None) -> None:
+        """Keep the console tail of a finished episode (the game's own ending lines) in run_dir/end_logs."""
+        try:
+            self.instance.console_tail()
+            d = self.instance.cfg.run_dir / "end_logs"
+            d.mkdir(parents=True, exist_ok=True)
+            lines = [l for l in self.instance._tail if "LUAOBS" not in l and "LUAALLY" not in l and "took " not in l]
+            last = self.last_ws
+            head = (f"end={end} dota_time={last.dota_time if last else None} state={last.game_state if last else None} "
+                    f"kills={last.player_kills if last else None} deaths={last.player_deaths if last else None}")
+            text = head + chr(10) + chr(10).join(lines[-60:]) + chr(10)
+            (d / f"i{self.instance.cfg.index}_{int(time.time())}.txt").write_text(text)
+        except Exception:  # noqa: BLE001 - diagnostics must never end a run
+            pass
 
     async def _post_game_reached(self, wait_s: float = 3.0) -> bool:
         """The console log can trail the socket by a moment; give the POST_GAME line a few seconds to land."""
