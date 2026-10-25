@@ -335,3 +335,9 @@ RL checkpoints are not clearly ahead of the clone (3, 4, 6 in its three games). 
 from bc_v2 with all three fixes (own-progress shaping, W_HP 0.1, no Valve waves), 60 iterations, evaluation every 10
 with 12 games per difficulty split across sides. Pre-registered: judge the slope over six evaluation points; if
 self farming is under 4 and the evaluation flat at 60, the next single change is 24 games per update.
+
+sp_v12 (all three fixes, from bc_v2) stopped at the user's request after iteration 10. Self-wave last hits 5.2 to
+7.6 across the ten waves, decided mirrors Radiant 29 / Dire 40, KL 0.13. Iteration-10 evaluation, 12 games per
+difficulty, half per side: vs passive median 5 last hits, level 4, draws 42%; vs unfair median 7 last hits, level 4,
+draws 58%, no wins. First evaluation above the clone's 4 on a 12-game sample, and the first above the clone against
+unfair bots. Resume with `--init runs/sp_v12/policy.pt`.
