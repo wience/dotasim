@@ -312,3 +312,8 @@ by then), Radiant/Dire decided games roughly even after iteration 5 but nearly a
 at 10: 0 last hits and level 1 vs passive, 1.5 vs unfair, while the same policy farms 6.9 per game in self-play.
 Branch 1 of the decision tree: the Valve beatings teach avoidance of Valve-like opponents specifically. P_VALVE set to
 0 for training (0.8 self, 0.2 pool); evaluation still measures against Valve. sp_v11 from `runs/sp_v8/policy.pt`.
+
+sp_v11 (no Valve waves) iterations 1 to 10: self-wave last hits 6.0 -> 4.1, caps rising to 11 of 12, decided
+mirrors Radiant 13 / Dire 47. Eval at 10: 1.5 last hits vs passive (level 1.5), 0.5 vs unfair. Still drifting to
+stalemate without any Valve wave, so branch 2 of the decision tree: the side asymmetry. Checking first whether the
+recorded Valve-vs-Valve games show the same Dire edge (map) or not (lockstep protocol).
