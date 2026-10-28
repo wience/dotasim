@@ -91,6 +91,7 @@ def main():
             Path("live.json").write_text(json.dumps(snap))
             r = subprocess.run(["gh", "gist", "edit", a.gist, "-f", "live.json", "live.json"], capture_output=True, text=True)
         else:
+            git("worktree", "repair", str(wt), cwd=REPO)   # Windows git rewrites the worktree's gitdir pointer to a C:/ path; WSL git cannot read it
             (wt / "live.json").write_text(json.dumps(snap))
             git("add", "live.json", cwd=wt)
             has_commit = git("rev-parse", "--verify", "HEAD", cwd=wt).returncode == 0
