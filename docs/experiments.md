@@ -407,3 +407,19 @@ updates, 18 min. 12 games vs passive, 300 s, six per side (`runs/eval_bc_v3_pass
 hits (median 3.5), Dire 4, 5, 8, 2, 2, 5 (median 4.5), levels 3 to 4 on both sides. The overall median is the
 clone's old 4, but for the first time Dire farms at all (bc_v2 and every RL checkpoint: 0, level 1). Gate passed;
 stage 1 starts from this checkpoint.
+
+## 2026-10-28 overlap A/B: no gain at 8 servers
+
+Four iterations each, 8 servers, vs passive, from bc_v3, GPU learner. Plain: 388 s for four iterations (97 s each;
+decisions 6 ms, servers 7 to 9x, update 9.5 s). `--overlap`: 403 s, and one learner process exited 1 so an iteration
+was lost. With 8 servers the update is 10% of an iteration, which caps the overlap's gain at 10%, and it adds a
+one-update policy lag. Not used; the flag stays for a larger fleet.
+
+## 2026-10-28 st1_v1: curriculum stage 1 (vs passive Valve, 8 servers, from bc_v3)
+
+`--instances 8 --p-valve 1 --p-pool 0 --difficulty 0 --cap 300 --iterations 60 --eval-every 10 --eval-games 12`,
+GPU learner, surrender timer 3600. Every wave is the live policy against Valve's passive bot (which still takes
+creeps: 15 to 23 last hits per game), alternating sides per env. Vs passive is now in-distribution; vs unfair is the
+held-out evaluation. Pre-registered: per-side training last hits above the clone's 4 by iteration 20 and rising
+through 60; if it plateaus near the clone, the anchor KL (kl_coef 0.02) is the first suspect, then the last-hit
+timing features (creep hp velocity, attack readiness, projectile-adjusted killable flag).
