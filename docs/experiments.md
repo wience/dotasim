@@ -352,3 +352,20 @@ chooses "none" a third of the time. Conclusion: with last hits worth 0.02 and a 
 (about 0.6) is worth less than one death, and the mutual-idling equilibrium wins regardless of the other fixes.
 Next single change: W_LH 0.15 and W_DN 0.05, the ratio OpenAI Five used (0.16 per last hit, -1 per death), so that
 farming dominates the early signal. sp_v14 from bc_v2.
+
+## 2026-10-28 sp_v14 (W_LH 0.15, W_DN 0.05, from bc_v2): the side was the bug
+
+60 iterations, but 24 of the waves were "cold" (every server ends in pre-game, 229 s wall each; 278 of 684 episodes,
+none in sp_v12/v13) and were skipped, so only 36 updates. Self-wave last hits 3.8 at the first real update, 7.7 at
+iteration 46, back to 2 to 5 by 55. 12-game evaluations: iteration 30 vs passive 5 last hits, level 4; iterations 40
+and 50 median 0, level 1, draws 67 to 83%, both difficulties. Per side the picture is different: across the 40 and 50
+evaluations Radiant scored 3, 7, 9, 10, 5, 8, 1, 5, 12, 2, 0, 8 last hits and Dire 0, 2, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0.
+The clone had the same asymmetry (Radiant 8 / Dire 3 in the mirror probe above), misread then as "no protocol bias".
+Cause: features, labels and the 16 move directions are all in absolute map coordinates, so one network learns two
+maps and the Dire half never learned the lane; self-play then punishes the weak side until it hides, which drags the
+mean to 0. Fix (commit 07945ce): Dire's world is rotated 180 degrees about the mid towers' midpoint (-430, -390) in
+featurize, label and move decoding (`canon_sign`), cache v3, test `test_dire_sees_the_canonical_frame`. Also new:
+last hits per side in the log and dashboard, and the whole console log is kept for any episode that dies in pre-game.
+Next: retrain the clone (bc_v3), gate on Radiant and Dire farming alike in the mirror probe, then a curriculum
+(stage 1 PPO vs passive Valve, gate 20 last hits per side; stage 2 vs easy to unfair; stage 3 self-play with 20%
+Valve waves and 10-minute games) instead of self-play from a 4-last-hit clone.
