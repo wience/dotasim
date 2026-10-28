@@ -261,6 +261,10 @@ async def train_selfplay(cfg: SelfPlayConfig) -> dict:
             line["mean_return"] = round(float(np.mean([sum(s.reward for s in t.steps) for t in fin])), 4)
             line["mean_last_hits"] = round(float(np.mean([t.steps[-1].hero[4] * 100 for t in fin])), 2)
             line["mean_denies"] = round(float(np.mean([t.steps[-1].hero[5] * 50 for t in fin])), 2)
+            for side, name in ((2, "radiant"), (3, "dire")):   # the two sides see different absolute maps; a mean can hide one side idling
+                ts = [t for t in fin if t.team == side]
+                if ts:
+                    line[f"last_hits_{name}"] = round(float(np.mean([t.steps[-1].hero[4] * 100 for t in ts])), 2)
             writer.add_scalar("train/mean_return", line["mean_return"], it + 1)
             writer.add_scalar("train/mean_last_hits", line["mean_last_hits"], it + 1)
             writer.add_scalar("train/mean_denies", line["mean_denies"], it + 1)

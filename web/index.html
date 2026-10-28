@@ -94,7 +94,7 @@
 
   <h2>Iterations (newest first)</h2>
   <div class="wrap"><table>
-    <thead><tr><th>it</th><th>opponent</th><th>steps</th><th>trajectories</th><th>fort / cap</th><th>W–D–L</th><th>last hits</th><th>denies</th><th>return</th><th>loss π</th><th>loss V</th><th>entropy</th><th>KL anchor</th><th>clip</th><th>speed</th><th>decision ms</th><th>update s</th><th>Lua t/o</th></tr></thead>
+    <thead><tr><th>it</th><th>opponent</th><th>steps</th><th>trajectories</th><th>fort / cap</th><th>W–D–L</th><th>last hits</th><th>R / D</th><th>denies</th><th>return</th><th>loss π</th><th>loss V</th><th>entropy</th><th>KL anchor</th><th>clip</th><th>speed</th><th>decision ms</th><th>update s</th><th>Lua t/o</th></tr></thead>
     <tbody id="its"></tbody>
   </table></div>
 </main>
@@ -159,7 +159,7 @@ function render() {
   const alive = inst.filter((i) => i.phase !== "dead").length;
   const cards = [
     ["iterations done", its.filter((i) => !i.skipped && !i.error).length, `${its.filter((i) => i.skipped).length} skipped · ${its.filter((i) => i.error).length} errors`],
-    ["training last hits / game", f1(last?.mean_last_hits), `denies ${f1(last?.mean_denies)} · clone: 4 · Valve bot: about 18`],
+    ["training last hits / game", f1(last?.mean_last_hits), `Radiant ${f1(last?.last_hits_radiant)} · Dire ${f1(last?.last_hits_dire)} · denies ${f1(last?.mean_denies)} · clone: 4 · Valve bot: about 18`],
     ["eval vs passive", le ? le.eval.last_hits_passive : "–", le ? `it ${le.iteration} · level ${le.eval.level_passive} · draws ${pct(le.eval.draw_rate_passive)}` : "first eval pending"],
     ["eval vs unfair", le ? le.eval.last_hits_unfair : "–", le ? `wins ${pct(le.eval.win_rate_unfair)} · draws ${pct(le.eval.draw_rate_unfair)}` : ""],
     ["KL to anchor", f3(last?.kl_anchor), `entropy ${f3(last?.entropy)}`],
@@ -205,7 +205,7 @@ function render() {
     const k = kindOf(i.outcomes), w = k === "–" ? "–" : i.outcomes[k].join("–");
     return `<tr class="${i.eval ? "ev" : ""} ${i.error || i.skipped ? "bad" : ""}"><td>${i.iteration}</td><td>${i.skipped ? "skipped: " + esc(i.skipped) : i.error ? "error: " + esc(i.error) : k}</td>
       <td>${i.steps ?? "–"}</td><td>${i.trajectories ?? "–"}</td><td>${i.ends?.post_game_log ?? 0} / ${i.ends?.cap ?? 0}</td><td>${w}</td>
-      <td>${f1(i.mean_last_hits)}</td><td>${f1(i.mean_denies)}</td><td>${i.mean_return != null ? Number(i.mean_return).toFixed(3) : "–"}</td><td>${i.loss_pi != null ? Number(i.loss_pi).toFixed(4) : "–"}</td><td>${i.loss_v != null ? Number(i.loss_v).toFixed(4) : "–"}</td>
+      <td>${f1(i.mean_last_hits)}</td><td>${f1(i.last_hits_radiant)} / ${f1(i.last_hits_dire)}</td><td>${f1(i.mean_denies)}</td><td>${i.mean_return != null ? Number(i.mean_return).toFixed(3) : "–"}</td><td>${i.loss_pi != null ? Number(i.loss_pi).toFixed(4) : "–"}</td><td>${i.loss_v != null ? Number(i.loss_v).toFixed(4) : "–"}</td>
       <td>${f3(i.entropy)}</td><td>${f3(i.kl_anchor)}</td><td>${i.clipfrac != null ? pct(i.clipfrac) : "–"}</td><td>${i.speed_x != null ? f1(i.speed_x) + "x" : "–"}</td><td>${i.act_ms ?? "–"}</td><td>${i.update_wall_s ?? i.wall_s ?? "–"}</td><td>${i.lua_timeouts ?? "–"}</td></tr>`;
   }).join("");
   charts(its);

@@ -202,6 +202,9 @@ class DotaEnv:
                     f"kills={last.player_kills if last else None} deaths={last.player_deaths if last else None}")
             text = head + chr(10) + chr(10).join(lines[-60:]) + chr(10)
             (d / f"i{self.instance.cfg.index}_{int(time.time())}.txt").write_text(text)
+            if end == "post_game_log" and last is not None and last.dota_time < 0:   # died in pre-game: keep the whole console log, the tail never shows why
+                import shutil
+                shutil.copy(self.instance.cfg.console_log, d / f"pregame_i{self.instance.cfg.index}_{int(time.time())}.log")
         except Exception:  # noqa: BLE001 - diagnostics must never end a run
             pass
 

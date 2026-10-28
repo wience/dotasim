@@ -11,7 +11,7 @@ import subprocess
 import time
 from pathlib import Path
 
-KEEP = ("iteration", "skipped", "steps", "ends", "outcomes", "mean_last_hits", "mean_denies", "mean_return", "kl_anchor", "entropy",
+KEEP = ("iteration", "skipped", "steps", "ends", "outcomes", "mean_last_hits", "mean_denies", "last_hits_radiant", "last_hits_dire", "mean_return", "kl_anchor", "entropy",
         "act_ms", "speed_x", "update_wall_s", "wall_s", "eval", "error")
 REPO = Path(__file__).resolve().parents[1]
 
