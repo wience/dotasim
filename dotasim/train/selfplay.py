@@ -260,8 +260,10 @@ async def train_selfplay(cfg: SelfPlayConfig) -> dict:
         if fin:   # does the agent lane more over iterations? (shaping telescopes, so the return is about the end potential)
             line["mean_return"] = round(float(np.mean([sum(s.reward for s in t.steps) for t in fin])), 4)
             line["mean_last_hits"] = round(float(np.mean([t.steps[-1].hero[4] * 100 for t in fin])), 2)
+            line["mean_denies"] = round(float(np.mean([t.steps[-1].hero[5] * 50 for t in fin])), 2)
             writer.add_scalar("train/mean_return", line["mean_return"], it + 1)
             writer.add_scalar("train/mean_last_hits", line["mean_last_hits"], it + 1)
+            writer.add_scalar("train/mean_denies", line["mean_denies"], it + 1)
         for k in ("loss_pi", "loss_v", "entropy", "kl_anchor", "clipfrac", "approx_kl"):
             if k in stats:
                 writer.add_scalar(f"train/{k}", stats[k], it + 1)
@@ -284,6 +286,7 @@ async def train_selfplay(cfg: SelfPlayConfig) -> dict:
                 last_eval[f"win_rate_{name}"] = res["median"].get("win_rate", 0.0)
                 last_eval[f"draw_rate_{name}"] = res["median"].get("draw_rate", 0.0)
                 last_eval[f"last_hits_{name}"] = res["median"]["last_hits"]
+                last_eval[f"denies_{name}"] = res["median"]["denies"]
                 last_eval[f"level_{name}"] = res["median"]["level"]
                 writer.add_scalar(f"eval/win_rate_{name}", last_eval[f"win_rate_{name}"], it + 1)
                 writer.add_scalar(f"eval/last_hits_{name}", last_eval[f"last_hits_{name}"], it + 1)

@@ -77,7 +77,7 @@
   <h2>Progress</h2>
   <div class="grid2">
     <div class="panel"><h3>Last hits per 5-minute game</h3><canvas class="chart" id="c-lh"></canvas>
-      <div class="legend"><i class="sw" style="background:#6aa8ff"></i>training (self-play) <i class="sw" style="background:#4fc36a"></i>eval vs passive <i class="sw" style="background:#e4574f"></i>eval vs unfair <i class="sw" style="background:#666"></i>clone (4)</div></div>
+      <div class="legend"><i class="sw" style="background:#6aa8ff"></i>training (self-play) <i class="sw" style="background:#4fc36a"></i>eval vs passive <i class="sw" style="background:#e4574f"></i>eval vs unfair <i class="sw" style="background:#666"></i>clone (4) · dashed: denies</div></div>
     <div class="panel"><h3>Outcomes per wave (live side's view)</h3><canvas class="chart" id="c-out"></canvas>
       <div class="legend"><i class="sw" style="background:#4fc36a"></i>wins <i class="sw" style="background:#555c66"></i>draws <i class="sw" style="background:#e4574f"></i>losses · letter under the bar: s self, p pool, v Valve</div></div>
     <div class="panel"><h3>Drift and exploration</h3><canvas class="chart" id="c-kl"></canvas>
@@ -94,7 +94,7 @@
 
   <h2>Iterations (newest first)</h2>
   <div class="wrap"><table>
-    <thead><tr><th>it</th><th>opponent</th><th>steps</th><th>trajectories</th><th>fort / cap</th><th>W–D–L</th><th>last hits</th><th>return</th><th>loss π</th><th>loss V</th><th>entropy</th><th>KL anchor</th><th>clip</th><th>speed</th><th>decision ms</th><th>update s</th><th>Lua t/o</th></tr></thead>
+    <thead><tr><th>it</th><th>opponent</th><th>steps</th><th>trajectories</th><th>fort / cap</th><th>W–D–L</th><th>last hits</th><th>denies</th><th>return</th><th>loss π</th><th>loss V</th><th>entropy</th><th>KL anchor</th><th>clip</th><th>speed</th><th>decision ms</th><th>update s</th><th>Lua t/o</th></tr></thead>
     <tbody id="its"></tbody>
   </table></div>
 </main>
@@ -159,7 +159,7 @@ function render() {
   const alive = inst.filter((i) => i.phase !== "dead").length;
   const cards = [
     ["iterations done", its.filter((i) => !i.skipped && !i.error).length, `${its.filter((i) => i.skipped).length} skipped · ${its.filter((i) => i.error).length} errors`],
-    ["training last hits / game", f1(last?.mean_last_hits), "clone: 4 · Valve bot: about 18"],
+    ["training last hits / game", f1(last?.mean_last_hits), `denies ${f1(last?.mean_denies)} · clone: 4 · Valve bot: about 18`],
     ["eval vs passive", le ? le.eval.last_hits_passive : "–", le ? `it ${le.iteration} · level ${le.eval.level_passive} · draws ${pct(le.eval.draw_rate_passive)}` : "first eval pending"],
     ["eval vs unfair", le ? le.eval.last_hits_unfair : "–", le ? `wins ${pct(le.eval.win_rate_unfair)} · draws ${pct(le.eval.draw_rate_unfair)}` : ""],
     ["KL to anchor", f3(last?.kl_anchor), `entropy ${f3(last?.entropy)}`],
@@ -199,13 +199,13 @@ function render() {
   if (selected != null) renderDetail();
 
   $("evals").innerHTML = evals.slice().reverse().map((i) => { const e = i.eval; return `<tr><td>${i.iteration}</td>
-    <td>${e.last_hits_passive}</td><td>${e.level_passive}</td><td>${pct(e.win_rate_passive)}</td><td>${pct(e.draw_rate_passive)}</td>
-    <td>${e.last_hits_unfair}</td><td>${e.level_unfair}</td><td>${pct(e.win_rate_unfair)}</td><td>${pct(e.draw_rate_unfair)}</td></tr>`; }).join("") || "<tr><td colspan=9 class=muted>no evaluation yet</td></tr>";
+    <td>${e.last_hits_passive}${e.denies_passive != null ? " / " + e.denies_passive : ""}</td><td>${e.level_passive}</td><td>${pct(e.win_rate_passive)}</td><td>${pct(e.draw_rate_passive)}</td>
+    <td>${e.last_hits_unfair}${e.denies_unfair != null ? " / " + e.denies_unfair : ""}</td><td>${e.level_unfair}</td><td>${pct(e.win_rate_unfair)}</td><td>${pct(e.draw_rate_unfair)}</td></tr>`; }).join("") || "<tr><td colspan=9 class=muted>no evaluation yet</td></tr>";
   $("its").innerHTML = its.slice().reverse().map((i) => {
     const k = kindOf(i.outcomes), w = k === "–" ? "–" : i.outcomes[k].join("–");
     return `<tr class="${i.eval ? "ev" : ""} ${i.error || i.skipped ? "bad" : ""}"><td>${i.iteration}</td><td>${i.skipped ? "skipped: " + esc(i.skipped) : i.error ? "error: " + esc(i.error) : k}</td>
       <td>${i.steps ?? "–"}</td><td>${i.trajectories ?? "–"}</td><td>${i.ends?.post_game_log ?? 0} / ${i.ends?.cap ?? 0}</td><td>${w}</td>
-      <td>${f1(i.mean_last_hits)}</td><td>${i.mean_return != null ? Number(i.mean_return).toFixed(3) : "–"}</td><td>${i.loss_pi != null ? Number(i.loss_pi).toFixed(4) : "–"}</td><td>${i.loss_v != null ? Number(i.loss_v).toFixed(4) : "–"}</td>
+      <td>${f1(i.mean_last_hits)}</td><td>${f1(i.mean_denies)}</td><td>${i.mean_return != null ? Number(i.mean_return).toFixed(3) : "–"}</td><td>${i.loss_pi != null ? Number(i.loss_pi).toFixed(4) : "–"}</td><td>${i.loss_v != null ? Number(i.loss_v).toFixed(4) : "–"}</td>
       <td>${f3(i.entropy)}</td><td>${f3(i.kl_anchor)}</td><td>${i.clipfrac != null ? pct(i.clipfrac) : "–"}</td><td>${i.speed_x != null ? f1(i.speed_x) + "x" : "–"}</td><td>${i.act_ms ?? "–"}</td><td>${i.update_wall_s ?? i.wall_s ?? "–"}</td><td>${i.lua_timeouts ?? "–"}</td></tr>`;
   }).join("");
   charts(its);
@@ -303,7 +303,7 @@ function charts(its) {
   { const { ctx, W, H } = setup("c-lh"); const maxY = Math.max(12, ...rows.map((i) => i.mean_last_hits || 0), ...ev.map((i) => Math.max(i.eval.last_hits_passive || 0, i.eval.last_hits_unfair || 0))) * 1.05;
     const { x, y } = axes(ctx, W, H, 30, 8, 8, 20, maxX, maxY, maxY > 20 ? 5 : 2);
     ctx.setLineDash([4, 4]); ctx.strokeStyle = "#666"; ctx.beginPath(); ctx.moveTo(30, y(4)); ctx.lineTo(W - 8, y(4)); ctx.stroke(); ctx.setLineDash([]);
-    line(ctx, rows, (i) => i.iteration, (i) => i.mean_last_hits, x, y, "#6aa8ff"); line(ctx, ev, (i) => i.iteration, (i) => i.eval.last_hits_passive, x, y, "#4fc36a"); line(ctx, ev, (i) => i.iteration, (i) => i.eval.last_hits_unfair, x, y, "#e4574f"); }
+    line(ctx, rows, (i) => i.iteration, (i) => i.mean_last_hits, x, y, "#6aa8ff"); ctx.setLineDash([3, 3]); line(ctx, rows, (i) => i.iteration, (i) => i.mean_denies, x, y, "#6aa8ff"); ctx.setLineDash([]); line(ctx, ev, (i) => i.iteration, (i) => i.eval.last_hits_passive, x, y, "#4fc36a"); line(ctx, ev, (i) => i.iteration, (i) => i.eval.last_hits_unfair, x, y, "#e4574f"); }
   { const { ctx, W, H } = setup("c-out"); const { x, y } = axes(ctx, W, H, 30, 8, 8, 20, maxX, 12, 4); const bw = Math.max(2, (W - 38) / Math.max(maxX, 1) * 0.7);
     for (const i of rows) { const k = kindOf(i.outcomes); if (k === "–") continue; const [w, d, l] = i.outcomes[k]; let base = 0; const X = x(i.iteration) - bw / 2;
       for (const [n, col] of [[w, "#4fc36a"], [d, "#555c66"], [l, "#e4574f"]]) { ctx.fillStyle = col; ctx.fillRect(X, y(base + n), bw, y(base) - y(base + n)); base += n; }
