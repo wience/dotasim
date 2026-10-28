@@ -423,3 +423,11 @@ creeps: 15 to 23 last hits per game), alternating sides per env. Vs passive is n
 held-out evaluation. Pre-registered: per-side training last hits above the clone's 4 by iteration 20 and rising
 through 60; if it plateaus near the clone, the anchor KL (kl_coef 0.02) is the first suspect, then the last-hit
 timing features (creep hp velocity, attack readiness, projectile-adjusted killable flag).
+
+st1_v1 progress: iteration 10 evaluation vs passive median 8.5 last hits (Radiant 13, 3, 11, 7, 8, 10; Dire 2, 14,
+6, 10, 9, 4), level 4 to 5, vs unfair 5.5: the best evaluation of the project. Iteration 20: vs passive 4.0 (three
+Radiant games at level 1), vs unfair 3.5. Training last hits over 20 waves: Radiant waves average 6.0, Dire 4.8, no
+visible slope. Iteration 22 lost to an operator error: the timing features (UNIT_DIM 16 to 19) were edited in the
+working tree while the run was live, and the GPU learner is a fresh process each update, so it imported the new
+dims and could not load the 16-dim weights ("learner exited 1"). Reverted via git stash; the rule is now: no edits
+to model or feature code while a run is live.
