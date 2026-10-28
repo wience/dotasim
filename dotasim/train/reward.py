@@ -8,7 +8,7 @@ from __future__ import annotations
 from dotasim.env.worldstate import WorldState
 
 GAMMA = 0.9995
-W_LH, W_DN, W_LVL, W_NW, W_HP = 0.02, 0.01, 0.1, 0.0005, 0.1   # W_HP was 0.5: with death at -1 it made not laning the best policy (sp_v7, sp_v9)
+W_LH, W_DN, W_LVL, W_NW, W_HP = 0.15, 0.05, 0.1, 0.0005, 0.1   # W_LH 0.02 -> 0.15, W_DN 0.01 -> 0.05 (OpenAI Five used 0.16 per last hit next to -1 per death); at 0.02 a game of farming was worth less than one death and self-play idled (sp_v7, v9, v10, v11, v13)
 TOWER_MID = {2: "npc_dota_goodguys_tower1_mid", 3: "npc_dota_badguys_tower1_mid"}
 PID = {2: 0, 3: 5}   # player ids of the 1v1 heroes
 

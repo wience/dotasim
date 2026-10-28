@@ -341,3 +341,14 @@ sp_v12 (all three fixes, from bc_v2) stopped at the user's request after iterati
 difficulty, half per side: vs passive median 5 last hits, level 4, draws 42%; vs unfair median 7 last hits, level 4,
 draws 58%, no wins. First evaluation above the clone's 4 on a 12-game sample, and the first above the clone against
 unfair bots. Resume with `--init runs/sp_v12/policy.pt`.
+
+## 2026-10-26 sp_v13 overnight (all three fixes, from sp_v12 iteration 10): collapsed anyway
+
+109 iterations, 0 errors, 0 skipped, 95 s each. Self-wave last hits 5.5 to 7.8 in the first five waves, then a slide
+to 0.0 by iteration 30 and 0.0 for the rest. 12-game evaluations: iteration 10 vs passive 4.5 last hits, level 3.5;
+from iteration 20 on 0 last hits and level 1 against both difficulties, every game a draw or a loss. KL to the anchor
+stayed low (0.08 at the end): the idle policy is close to the clone in action distribution, since the clone already
+chooses "none" a third of the time. Conclusion: with last hits worth 0.02 and a death -1.1, a whole game of farming
+(about 0.6) is worth less than one death, and the mutual-idling equilibrium wins regardless of the other fixes.
+Next single change: W_LH 0.15 and W_DN 0.05, the ratio OpenAI Five used (0.16 per last hit, -1 per death), so that
+farming dominates the early signal. sp_v14 from bc_v2.
