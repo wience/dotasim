@@ -13,7 +13,9 @@ P_SELF, P_POOL, P_VALVE = 0.8, 0.2, 0.0   # Valve waves (12 games all lost or dr
 
 
 class League:
-    def __init__(self, pool_dir: Path, frames: int, max_pool: int = 20, seed: int | None = None):
+    def __init__(self, pool_dir: Path, frames: int, max_pool: int = 20, seed: int | None = None,
+                 p_pool: float = P_POOL, p_valve: float = P_VALVE):
+        self.p_pool, self.p_valve = p_pool, p_valve   # curriculum stages set these: stage 1 is p_valve 1.0 vs passive bots
         # seed 0 gave S x12, P, S, S, P ... and no Valve wave until iteration 36; default to fresh entropy
         self.pool_dir = Path(pool_dir)
         self.pool_dir.mkdir(parents=True, exist_ok=True)
@@ -42,9 +44,9 @@ class League:
     def sample(self) -> tuple[str, NetPolicy | None]:
         """Returns ('self', None) | ('pool', opponent policy) | ('valve', None)."""
         r = self.rng.random()
-        if r < P_VALVE:
+        if r < self.p_valve:
             return "valve", None
-        if r < P_VALVE + P_POOL and self.pool:
+        if r < self.p_valve + self.p_pool and self.pool:
             path = self.rng.choice(self.pool)
             if path not in self._cache:
                 self._cache[path] = NetPolicy(path, greedy=False)

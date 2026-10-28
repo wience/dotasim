@@ -76,7 +76,10 @@ class InstanceConfig:
             "-botworldstatetosocket_radiant", str(self.ws_port(2)),
             "-botworldstatetosocket_dire", str(self.ws_port(3)),
             "-botworldstatetosocket_frames", str(self.frames), "-botworldstatesocket_threaded",
-            "+dota_auto_surrender_all_disconnected_timeout", "180",
+            # wall-clock seconds with no human connected before the game auto-surrenders (POST_GAME in pre-game, the
+            # "cold wave": sp_v14 lost 278 episodes to it when map loads or CPU contention slowed waves below 0.5x).
+            # Python ends episodes at cap_s, so this only has to outlast a slow wave.
+            "+dota_auto_surrender_all_disconnected_timeout", os.environ.get("DOTASIM_SURRENDER_S", "3600"),
             # SourceTV: lets a real client spectate (connect <ip>:<tv_port>) and records replays
             "+tv_enable", "1" if self.tv else "0", "+tv_port", str(self.tv_port), "+tv_delay", "0",
             "+tv_autorecord", "1" if self.tv else "0",

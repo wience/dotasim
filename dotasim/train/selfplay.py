@@ -49,6 +49,8 @@ class SelfPlayConfig:
     device: str = "cpu"   # learner device ("cuda" also names ROCm); rollouts always run the CPU copy
     learner_python: str | None = None   # run each update in this interpreter (the ROCm venv) as a separate process:
                                          # ROCm's runtime busy-waits two cores even idle, which starves the servers
+    p_pool: float = 0.2    # share of waves vs a past checkpoint; the rest after p_valve is self-play
+    p_valve: float = 0.0   # share of waves vs Valve bots at `difficulty` (stage 1 of the curriculum: 1.0 at difficulty 0)
 
 
 def _save(net: Policy, path: Path, frames: int, extra: dict) -> None:
@@ -186,7 +188,7 @@ def _write_config(cfg: SelfPlayConfig) -> None:
     """Everything the status page needs to say what kind of training this is."""
     import dataclasses
     import subprocess
-    from dotasim.train import league as L, reward as Rw
+    from dotasim.train import reward as Rw
     try:
         sha = subprocess.run(["git", "rev-parse", "--short", "HEAD"], capture_output=True, text=True, cwd=Path(__file__).parent).stdout.strip()
     except OSError:
@@ -194,7 +196,8 @@ def _write_config(cfg: SelfPlayConfig) -> None:
     d = {k: (str(v) if isinstance(v, Path) else v) for k, v in dataclasses.asdict(cfg).items()}
     d["reward"] = {"W_LH": Rw.W_LH, "W_DN": Rw.W_DN, "W_LVL": Rw.W_LVL, "W_NW": Rw.W_NW, "W_HP": Rw.W_HP, "gamma": Rw.GAMMA,
                    "terminal": "+1 win / -1 loss (fort destroyed), 0 at the cap", "shaping": "own progress, absolute; hp difference relative"}
-    d["league"] = {"p_self": L.P_SELF, "p_pool": L.P_POOL, "p_valve": L.P_VALVE, "one_kind_per_wave": True, "live_side": "alternates vs pool and Valve"}
+    d["league"] = {"p_self": round(1 - cfg.p_pool - cfg.p_valve, 3), "p_pool": cfg.p_pool, "p_valve": cfg.p_valve, "valve_difficulty": cfg.difficulty,
+                   "one_kind_per_wave": True, "live_side": "alternates vs pool and Valve"}
     d["threads"] = {"rollout": ROLLOUT_THREADS, "update": UPDATE_THREADS}
     d["git"] = sha
     d["started"] = time.strftime("%Y-%m-%dT%H:%M:%S%z")
@@ -209,7 +212,7 @@ async def train_selfplay(cfg: SelfPlayConfig) -> dict:
     opt_state = None   # Adam state round-trips through the learner subprocess
     anchor = Policy().to(cfg.device if not cfg.learner_python else "cpu")
     anchor.load_state_dict(live.net.state_dict())
-    league = League(cfg.out / "pool", cfg.frames)
+    league = League(cfg.out / "pool", cfg.frames, p_pool=cfg.p_pool, p_valve=cfg.p_valve)
     opt = torch.optim.Adam(learner.parameters(), lr=cfg.ppo.lr)
     writer = SummaryWriter(str(cfg.out / "tb"))
     log = open(cfg.out / "log.jsonl", "a")
@@ -316,10 +319,14 @@ def main(argv=None):
     p.add_argument("--lr", type=float, default=1e-4)
     p.add_argument("--device", default="cpu", help="learner device: cpu, or cuda for a ROCm/CUDA GPU (rollouts stay on CPU)")
     p.add_argument("--learner-python", default=None, help="interpreter for a separate learner process, e.g. ~/dotasim-rocm-venv/bin/python")
+    p.add_argument("--p-pool", type=float, default=0.2, help="share of waves vs a past checkpoint")
+    p.add_argument("--p-valve", type=float, default=0.0, help="share of waves vs Valve bots (1.0 = curriculum stage 1)")
+    p.add_argument("--difficulty", type=int, default=4, help="Valve bot difficulty for Valve waves: 0 passive ... 4 unfair")
     a = p.parse_args(argv)
     cfg = SelfPlayConfig(init=Path(a.init), out=Path(a.out), instances=a.instances, iterations=a.iterations, cap_s=a.cap,
                          eval_every=a.eval_every, eval_games=a.eval_games, ppo=PPOConfig(lr=a.lr, epochs=a.epochs), device=a.device,
-                         learner_python=(str(Path(a.learner_python).expanduser()) if a.learner_python else None))
+                         learner_python=(str(Path(a.learner_python).expanduser()) if a.learner_python else None),
+                         p_pool=a.p_pool, p_valve=a.p_valve, difficulty=a.difficulty)
     print(json.dumps(asyncio.run(train_selfplay(cfg)), indent=1))
 
 
