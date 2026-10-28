@@ -381,3 +381,18 @@ spends 180 s of wall clock before the horn (map loads after a WSL restart, CPU c
 policy) is killed. Default is now 3600 (`DOTASIM_SURRENDER_S`); Python ends episodes at the cap anyway. The clone's
 slow waves in sp_v14 (speed 0.8 to 1.3x, decisions 50 to 90 ms instead of 21) were host contention: 12 servers plus
 Python saturate the 16 threads, and SignalRGB alone used a full core for hours.
+
+## 2026-10-28 fleet size: 8 servers beat 12
+
+The clone on both sides, 120 s games, one per server, whole wave timed including launch, run twice in both orders on
+an idle host (`scripts/probe_sides.py`):
+
+| servers | wall for the wave | game-seconds per wall-second | Lua timeouts | decisions per game |
+|---|---|---|---|---|
+| 12 | 148 s, 139 s | 9.7, 10.4 | 43, 40 | 1524, 1540 |
+| 8 | 79 s, 75 s | 12.2, 12.8 | 14, 14 | 2175, 2118 |
+
+Eight servers give about 25% more game time per hour than twelve, a third of the lockstep timeouts, and 40% more
+decisions per game (with twelve, the Lua side gives up waiting and the game runs on without a decision). The Lua
+lockstep busy-spins while it waits for Python, so each extra server costs a thread of spin and slows the very
+process it waits for. Training runs use 8 servers from here.
