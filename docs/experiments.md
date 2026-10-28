@@ -431,3 +431,19 @@ visible slope. Iteration 22 lost to an operator error: the timing features (UNIT
 working tree while the run was live, and the GPU learner is a fresh process each update, so it imported the new
 dims and could not load the 16-dim weights ("learner exited 1"). Reverted via git stash; the rule is now: no edits
 to model or feature code while a run is live.
+
+## 2026-10-28 st1_v1 result and the real death penalty
+
+Evaluations vs passive at iterations 10, 20, 30, 40: medians 8.5, 4.0, 7.0, 3.5 with a growing share of games at
+0 last hits and level 1; training last hits fell to 2 to 3 from iteration 44 and 0.0 at 49; the iteration-50
+evaluation vs unfair was 0 in 11 of 12 games. The same collapse as every self-play run, now against a fixed
+passive opponent with the Dire frame fixed, so neither the opponent nor the frame was the cause.
+The cause is in the collector. A 1v1 game ends early by the mode's own rules (kills, the tier-1 tower), without a
+fort line; 1 to 6 of the 8 games per wave ended that way (`ends: post_game_log`). For those games `w` fell back to
+`reward.winner()`, which scores by deaths, so the side that died once got the -1 terminal and its opponent +1. A
+game where the agent farms 7 last hits and dies once nets about -0.2; a game spent in the fountain nets 0. The
+log's W-D-L counters show it directly: `valve: [0, 5, 3]` against a bot that never attacks. The "no death penalty"
+correction above was itself wrong: the explicit penalty was removed, but this fallback re-created it for every
+rule-ended game, and sp_v7 through st1_v1 all trained against it. Fix: the terminal reward comes from the fort line
+only; the fallback still labels the log's W-D-L. st1_v2 re-launches stage 1 from bc_v3 with nothing else changed;
+the kl_coef and timing-feature ladder applies only if st1_v2 also decays.

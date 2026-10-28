@@ -98,7 +98,12 @@ class _Collector:
             return
         err = "error" in info
         newest = max((ws for (e, _), ws in self.last_ws.items() if e == i), key=lambda w: w.dota_time, default=None)
-        w = info.get("winner") or (winner(newest) if (newest is not None and info.get("post_game")) else None)
+        # Terminal reward only from the console's fort line. The 1v1 rules also end a game early (kills, tier-1
+        # tower); scoring those by the deaths fallback gave -1 to whoever died once, a death penalty larger than a
+        # whole game of farming, and every run from sp_v7 to st1_v1 learned to hide from it. The fallback still
+        # labels the wave's W-D-L for the log.
+        w = info.get("winner")
+        w_label = w or (winner(newest) if (newest is not None and info.get("post_game")) else None)
         capped = bool(info.get("capped")) and not err
         for team in live_teams:
             if (i, team) in self.pending and newest is not None:
@@ -107,7 +112,7 @@ class _Collector:
             self.buf.finish(i, team, terminal_reward(team, w), err, last_value, capped=capped)
         if not err:
             view = 2 if self.kinds[i] == "self" else live_teams[0]
-            self.outcomes[self.kinds[i]][0 if w == view else (1 if w is None else 2)] += 1
+            self.outcomes[self.kinds[i]][0 if w_label == view else (1 if w_label is None else 2)] += 1
         for key in [k for k in self.last_ws if k[0] == i]:
             del self.last_ws[key]
         for key in [k for k in self.pending if k[0] == i]:
