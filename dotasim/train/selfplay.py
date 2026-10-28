@@ -296,7 +296,7 @@ async def train_selfplay(cfg: SelfPlayConfig) -> dict:
                 h, meta = pending
                 pending = None
                 stats, opt_state = await _await_learner(h, live.net)
-                await finish(*meta, stats)
+                await finish(*meta[:4], stats, meta[4])   # meta = (it, buf, totals, outcomes, t0)
             if buf.steps() < MIN_STEPS_PER_ENV * cfg.instances:
                 # right after a WSL restart the first waves stall on disk and the servers quit before the horn:
                 # a few thousand pre-game steps are not worth an update (sp_v5 and sp_v9 first launches)
@@ -331,7 +331,7 @@ async def train_selfplay(cfg: SelfPlayConfig) -> dict:
     if pending is not None:   # the run ended on an overlapped update
         h, meta = pending
         stats, opt_state = await _await_learner(h, live.net)
-        await finish(*meta, stats)
+        await finish(*meta[:4], stats, meta[4])
     log.close()
     writer.close()
     return {"iterations": cfg.iterations, "version": version, "wall_s": round(time.time() - t_start, 1), "last_eval": last_eval}
