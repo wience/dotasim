@@ -94,8 +94,12 @@ python -m dotasim.train.selfplay --init runs/bc_v2/policy.pt --instances 12 --it
 The two flags run the PPO update on the GPU in a separate process (`scripts/setup_rocm_wsl.sh` installs ROCm 7.2 and
 AMD's PyTorch wheels into `~/dotasim-rocm-venv`); drop them for CPU only. Rollouts always run on the CPU.
 
-Each iteration plays one episode per server (league: 70% self, 20% past checkpoint, 10% Valve unfair),
-runs one PPO update, and logs a JSON line to `runs/sp_v1/log.jsonl`.
+Each iteration plays one episode per server, runs one PPO update, and logs a JSON line to `runs/<run>/log.jsonl`.
+The opponent mix is `--p-pool` (past checkpoints, default 0.2) and `--p-valve` (Valve bots at `--difficulty`, default
+0); the rest is self-play. The curriculum runs stage 1 as `--p-valve 1 --difficulty 0` (farm vs passive bots, gate:
+20 last hits per side), stage 2 vs easy to unfair, stage 3 self-play with a Valve share. `--overlap` runs the GPU
+update while the next wave plays (one update of policy lag). Both heroes see the map in the Radiant frame: Dire's
+world is rotated 180 degrees about the mid towers (`canon_sign`), so one network plays both sides.
 
 ## How it works
 
