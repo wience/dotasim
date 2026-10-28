@@ -5,7 +5,8 @@ from dotasim.model.features import HERO_DIM, K, N_TYPES, UNIT_DIM
 from dotasim.model.net import Policy
 from dotasim.train.buffer import Window
 from dotasim.train.ppo import PPOConfig
-from dotasim.train.selfplay import SelfPlayConfig, _update_in_subprocess
+import asyncio
+from dotasim.train.selfplay import SelfPlayConfig, _await_learner, _launch_learner
 from pathlib import Path
 
 rng = np.random.default_rng(0); W = 32
@@ -23,8 +24,8 @@ cfg = SelfPlayConfig(init=Path("x"), out=Path("runs/check_gpu_learner"), device=
 net, anchor = Policy(), Policy(); anchor.load_state_dict(net.state_dict())
 before = {k: v.clone() for k, v in net.state_dict().items()}
 t = time.time()
-stats, opt_state = _update_in_subprocess(cfg, net, anchor, [win(i) for i in range(200)], 7, None)
-stats2, opt_state = _update_in_subprocess(cfg, net, anchor, [win(i) for i in range(200)], 7, opt_state)   # second call reuses Adam state
+stats, opt_state = asyncio.run(_await_learner(_launch_learner(cfg, net, anchor, [win(i) for i in range(200)], 7, None), net))
+stats2, opt_state = asyncio.run(_await_learner(_launch_learner(cfg, net, anchor, [win(i) for i in range(200)], 7, opt_state), net))   # second call reuses Adam state
 changed = sum(float((before[k] - v).abs().sum()) for k, v in net.state_dict().items())
 print({"two_updates_wall_s": round(time.time() - t, 1), "weights_changed": changed > 0, "adam_state_entries": len(opt_state["state"]),
        "stats": {k: round(v, 4) if isinstance(v, float) else v for k, v in stats2.items()}})

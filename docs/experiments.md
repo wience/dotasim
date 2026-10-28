@@ -348,15 +348,18 @@ unfair bots. Resume with `--init runs/sp_v12/policy.pt`.
 to 0.0 by iteration 30 and 0.0 for the rest. 12-game evaluations: iteration 10 vs passive 4.5 last hits, level 3.5;
 from iteration 20 on 0 last hits and level 1 against both difficulties, every game a draw or a loss. KL to the anchor
 stayed low (0.08 at the end): the idle policy is close to the clone in action distribution, since the clone already
-chooses "none" a third of the time. Conclusion: with last hits worth 0.02 and a death -1.1, a whole game of farming
-(about 0.6) is worth less than one death, and the mutual-idling equilibrium wins regardless of the other fixes.
-Next single change: W_LH 0.15 and W_DN 0.05, the ratio OpenAI Five used (0.16 per last hit, -1 per death), so that
-farming dominates the early signal. sp_v14 from bc_v2.
+chooses "none" a third of the time. Conclusion at the time: with last hits worth 0.02 and a death -1.1, a whole game of
+farming (about 0.6) is worth less than one death. Correction (2026-10-28): the reward has no death term at all; a
+death costs about 0.1 through the hp difference and recovers on respawn, and every game ended at the cap, so the
+terminal never entered the signal. The diagnosis was wrong; the real cause was the Dire frame (see sp_v14 below).
+Next single change was still W_LH 0.15 and W_DN 0.05 (OpenAI Five's per-last-hit scale). sp_v14 from bc_v2.
 
 ## 2026-10-28 sp_v14 (W_LH 0.15, W_DN 0.05, from bc_v2): the side was the bug
 
 60 iterations, but 24 of the waves were "cold" (every server ends in pre-game, 229 s wall each; 278 of 684 episodes,
-none in sp_v12/v13) and were skipped, so only 36 updates. Self-wave last hits 3.8 at the first real update, 7.7 at
+none in sp_v12/v13) and were skipped, so only 36 updates. WSL had booted three minutes before the launch, so the
+first 22 waves loaded the map from disk and hit the auto-surrender timer (see below); waves 24 and 56 were host
+contention. Self-wave last hits 3.8 at the first real update, 7.7 at
 iteration 46, back to 2 to 5 by 55. 12-game evaluations: iteration 30 vs passive 5 last hits, level 4; iterations 40
 and 50 median 0, level 1, draws 67 to 83%, both difficulties. Per side the picture is different: across the 40 and 50
 evaluations Radiant scored 3, 7, 9, 10, 5, 8, 1, 5, 12, 2, 0, 8 last hits and Dire 0, 2, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0.
