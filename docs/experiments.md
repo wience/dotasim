@@ -399,3 +399,11 @@ Eight servers give about 25% more game time per hour than twelve, a third of the
 decisions per game (with twelve, the Lua side gives up waiting and the game runs on without a decision). The Lua
 lockstep busy-spins while it waits for Python, so each extra server costs a thread of spin and slows the very
 process it waits for. Training runs use 8 servers from here.
+
+## 2026-10-28 bc_v3 (canonical frame): the gate passes
+
+Same recipe as bc_v2 on the v3 cache (Dire rotated 180 degrees): type accuracy 73% vs a 60% majority rate, 2,269
+updates, 18 min. 12 games vs passive, 300 s, six per side (`runs/eval_bc_v3_passive`): Radiant 1, 8, 0, 4, 9, 3 last
+hits (median 3.5), Dire 4, 5, 8, 2, 2, 5 (median 4.5), levels 3 to 4 on both sides. The overall median is the
+clone's old 4, but for the first time Dire farms at all (bc_v2 and every RL checkpoint: 0, level 1). Gate passed;
+stage 1 starts from this checkpoint.
