@@ -369,3 +369,15 @@ last hits per side in the log and dashboard, and the whole console log is kept f
 Next: retrain the clone (bc_v3), gate on Radiant and Dire farming alike in the mirror probe, then a curriculum
 (stage 1 PPO vs passive Valve, gate 20 last hits per side; stage 2 vs easy to unfair; stage 3 self-play with 20%
 Valve waves and 10-minute games) instead of self-play from a 4-last-hit clone.
+
+## 2026-10-28 cold waves reproduced: the auto-surrender timer
+
+`scripts/probe_slow.py` (two servers, the clone on both sides, 0.3 s of sleep per decision so the game runs at about
+0.5x) with the old `+dota_auto_surrender_all_disconnected_timeout 180`: both games end in pre-game at dota_time -40
+after 200 s wall, exactly the sp_v14 pattern (229 s waves, 278 of 684 episodes). The full console log says it
+outright: `UpdateAutomaticSurrender: Most recent network communication from a player was 183.2 seconds ago`, then
+`Terminating after game`. No human ever connects to these servers, so the timer counts from launch; a wave that
+spends 180 s of wall clock before the horn (map loads after a WSL restart, CPU contention from a busy host, a slow
+policy) is killed. Default is now 3600 (`DOTASIM_SURRENDER_S`); Python ends episodes at the cap anyway. The clone's
+slow waves in sp_v14 (speed 0.8 to 1.3x, decisions 50 to 90 ms instead of 21) were host contention: 12 servers plus
+Python saturate the 16 threads, and SignalRGB alone used a full core for hours.
