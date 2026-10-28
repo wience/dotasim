@@ -51,6 +51,7 @@ class SelfPlayConfig:
                                          # ROCm's runtime busy-waits two cores even idle, which starves the servers
     p_pool: float = 0.2    # share of waves vs a past checkpoint; the rest after p_valve is self-play
     p_valve: float = 0.0   # share of waves vs Valve bots at `difficulty` (stage 1 of the curriculum: 1.0 at difficulty 0)
+    overlap: bool = False  # run the GPU update while the next wave plays (one update of policy lag; needs learner_python)
 
 
 def _save(net: Policy, path: Path, frames: int, extra: dict) -> None:
@@ -166,9 +167,10 @@ async def wait_servers_exit(max_s: float = 40.0) -> int:
     return len(alive)
 
 
-def _update_in_subprocess(cfg: SelfPlayConfig, net: Policy, anchor: Policy, windows: list, version: int,
-                          opt_state: dict | None) -> tuple[dict, dict]:
-    """ppo_update in `cfg.learner_python` (see gpu_learner.py); payload via /tmp (native disk, not /mnt/c)."""
+def _launch_learner(cfg: SelfPlayConfig, net: Policy, anchor: Policy, windows: list, version: int,
+                    opt_state: dict | None) -> dict:
+    """Start ppo_update in `cfg.learner_python` (see gpu_learner.py); payload via /tmp (native disk, not /mnt/c).
+    Returns a handle for _await_learner; with cfg.overlap the next wave plays while it runs (one update of lag)."""
     import subprocess
     import tempfile
     d = Path(tempfile.gettempdir())
@@ -176,11 +178,18 @@ def _update_in_subprocess(cfg: SelfPlayConfig, net: Policy, anchor: Policy, wind
     torch.save({"state_dict": net.state_dict(), "anchor": anchor.state_dict(), "opt_state": opt_state,
                 "windows": windows, "cfg": cfg.ppo, "version": version, "device": cfg.device}, inp)
     env = dict(os.environ, PYTHONPATH=str(Path(__file__).resolve().parents[2]))
-    t0 = time.time()
-    subprocess.run([cfg.learner_python, "-m", "dotasim.train.gpu_learner", str(inp), str(outp)], check=True, env=env)
-    res = torch.load(outp, map_location="cpu", weights_only=False)
+    proc = subprocess.Popen([cfg.learner_python, "-m", "dotasim.train.gpu_learner", str(inp), str(outp)], env=env)
+    return {"proc": proc, "out": outp, "t0": time.time()}
+
+
+async def _await_learner(h: dict, net: Policy) -> tuple[dict, dict]:
+    while h["proc"].poll() is None:
+        await asyncio.sleep(0.5)
+    if h["proc"].returncode:
+        raise RuntimeError(f"learner exited {h['proc'].returncode}")
+    res = torch.load(h["out"], map_location="cpu", weights_only=False)
     net.load_state_dict(res["state_dict"])
-    res["stats"]["update_wall_s"] = round(time.time() - t0, 1)
+    res["stats"]["update_wall_s"] = round(time.time() - h["t0"], 1)
     return res["stats"], res["opt_state"]
 
 
@@ -220,35 +229,9 @@ async def train_selfplay(cfg: SelfPlayConfig) -> dict:
     version = 0
     t_start = time.time()
     last_eval: dict = {}
-    for it in range(cfg.iterations):
-        t0 = time.time()
-        try:
-            await wait_servers_exit()   # launching 12 new servers while 12 old ones exit starves the decision loop
-            buf, totals, outcomes = await run_iteration(cfg, live, league, version, it)
-            if buf.steps() < MIN_STEPS_PER_ENV * cfg.instances:
-                # right after a WSL restart the first waves stall on disk and the servers quit before the horn:
-                # a few thousand pre-game steps are not worth an update (sp_v5 and sp_v9 first launches)
-                line = {"iteration": it + 1, "skipped": "cold wave", "steps": buf.steps(), "ends": totals.get("ends", {}),
-                        "wall_s": round(time.time() - t0, 1)}
-                log.write(json.dumps(line) + "\n"); log.flush(); print(json.dumps(line), flush=True)
-                continue
-            windows = buf.windows(cfg.ppo.gamma, cfg.ppo.lam)
-            torch.set_num_threads(UPDATE_THREADS)
-            if cfg.learner_python and windows:
-                stats, opt_state = _update_in_subprocess(cfg, live.net, anchor, windows, version, opt_state)
-            else:
-                if learner is not live.net:
-                    learner.load_state_dict(live.net.state_dict())
-                stats = ppo_update(learner, anchor, windows, cfg.ppo, opt, version=version) if windows else {}
-                if learner is not live.net:
-                    live.net.load_state_dict({k: v.detach().cpu() for k, v in learner.state_dict().items()})
-            torch.set_num_threads(ROLLOUT_THREADS)
-        except Exception as e:  # noqa: BLE001 - one bad iteration must not end an unattended run
-            line = {"iteration": it + 1, "error": f"{type(e).__name__}: {e}", "traceback": traceback.format_exc()[-2000:],
-                    "wall_s": round(time.time() - t0, 1)}
-            log.write(json.dumps(line) + "\n"); log.flush()
-            print(json.dumps({k: v for k, v in line.items() if k != "traceback"}), flush=True)
-            continue
+    async def finish(it, buf, totals, outcomes, stats, t0):
+        """Everything after a wave's update: checkpoint, pool, anchor, the log line, the evaluation."""
+        nonlocal version, last_eval
         version += 1
         _save(live.net, cfg.out / "policy.pt", cfg.frames, {"iteration": it + 1, "version": version})
         if cfg.pool_every and (it + 1) % cfg.pool_every == 0:
@@ -301,6 +284,54 @@ async def train_selfplay(cfg: SelfPlayConfig) -> dict:
         log.write(json.dumps(line) + "\n")
         log.flush()
         print(json.dumps(line), flush=True)
+
+    pending = None   # a learner process still running while the next wave plays (cfg.overlap)
+    for it in range(cfg.iterations):
+        t0 = time.time()
+        eval_due = bool(cfg.eval_every and (it + 1) % cfg.eval_every == 0)
+        try:
+            await wait_servers_exit()   # launching 12 new servers while 12 old ones exit starves the decision loop
+            buf, totals, outcomes = await run_iteration(cfg, live, league, version, it)
+            if pending is not None:     # the previous wave's update ran during this wave; land it before deciding anything
+                h, meta = pending
+                pending = None
+                stats, opt_state = await _await_learner(h, live.net)
+                await finish(*meta, stats)
+            if buf.steps() < MIN_STEPS_PER_ENV * cfg.instances:
+                # right after a WSL restart the first waves stall on disk and the servers quit before the horn:
+                # a few thousand pre-game steps are not worth an update (sp_v5 and sp_v9 first launches)
+                line = {"iteration": it + 1, "skipped": "cold wave", "steps": buf.steps(), "ends": totals.get("ends", {}),
+                        "wall_s": round(time.time() - t0, 1)}
+                log.write(json.dumps(line) + "\n"); log.flush(); print(json.dumps(line), flush=True)
+                continue
+            windows = buf.windows(cfg.ppo.gamma, cfg.ppo.lam)
+            torch.set_num_threads(UPDATE_THREADS)
+            if cfg.learner_python and windows:
+                h = _launch_learner(cfg, live.net, anchor, windows, version, opt_state)
+                if cfg.overlap and not eval_due and it + 1 < cfg.iterations:
+                    pending = (h, (it, buf, totals, outcomes, t0))   # next wave plays on the current weights meanwhile
+                    torch.set_num_threads(ROLLOUT_THREADS)
+                    continue
+                stats, opt_state = await _await_learner(h, live.net)
+            else:
+                if learner is not live.net:
+                    learner.load_state_dict(live.net.state_dict())
+                stats = ppo_update(learner, anchor, windows, cfg.ppo, opt, version=version) if windows else {}
+                if learner is not live.net:
+                    live.net.load_state_dict({k: v.detach().cpu() for k, v in learner.state_dict().items()})
+            torch.set_num_threads(ROLLOUT_THREADS)
+        except Exception as e:  # noqa: BLE001 - one bad iteration must not end an unattended run
+            pending = None
+            line = {"iteration": it + 1, "error": f"{type(e).__name__}: {e}", "traceback": traceback.format_exc()[-2000:],
+                    "wall_s": round(time.time() - t0, 1)}
+            log.write(json.dumps(line) + "\n"); log.flush()
+            print(json.dumps({k: v for k, v in line.items() if k != "traceback"}), flush=True)
+            continue
+        await finish(it, buf, totals, outcomes, stats, t0)
+    if pending is not None:   # the run ended on an overlapped update
+        h, meta = pending
+        stats, opt_state = await _await_learner(h, live.net)
+        await finish(*meta, stats)
     log.close()
     writer.close()
     return {"iterations": cfg.iterations, "version": version, "wall_s": round(time.time() - t_start, 1), "last_eval": last_eval}
@@ -322,11 +353,12 @@ def main(argv=None):
     p.add_argument("--p-pool", type=float, default=0.2, help="share of waves vs a past checkpoint")
     p.add_argument("--p-valve", type=float, default=0.0, help="share of waves vs Valve bots (1.0 = curriculum stage 1)")
     p.add_argument("--difficulty", type=int, default=4, help="Valve bot difficulty for Valve waves: 0 passive ... 4 unfair")
+    p.add_argument("--overlap", action="store_true", help="GPU update runs while the next wave plays (needs --learner-python)")
     a = p.parse_args(argv)
     cfg = SelfPlayConfig(init=Path(a.init), out=Path(a.out), instances=a.instances, iterations=a.iterations, cap_s=a.cap,
                          eval_every=a.eval_every, eval_games=a.eval_games, ppo=PPOConfig(lr=a.lr, epochs=a.epochs), device=a.device,
                          learner_python=(str(Path(a.learner_python).expanduser()) if a.learner_python else None),
-                         p_pool=a.p_pool, p_valve=a.p_valve, difficulty=a.difficulty)
+                         p_pool=a.p_pool, p_valve=a.p_valve, difficulty=a.difficulty, overlap=a.overlap)
     print(json.dumps(asyncio.run(train_selfplay(cfg)), indent=1))
 
 
