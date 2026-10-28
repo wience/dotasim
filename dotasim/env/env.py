@@ -299,7 +299,7 @@ class DotaEnv:
                 kills[t] = h.kills if h else 0
                 last_hits[t] = h.last_hits if h else -1
                 stt = ws.stats.get(0 if t == 2 else 5, {})
-                teams[t] = {"hero": heroes[t], "role": self.matchup.roles.get(0 if t == 2 else 5, "filler"),
+                teams[t] = {"hero": heroes[t], "role": (self.matchup.roles.get(0 if t == 2 else 5, "filler") if self.matchup else ""),
                             "kills": kills[t], "deaths": h.deaths if h else 0, "last_hits": last_hits[t],
                             "denies": h.denies if h else -1, "level": h.level if h else stt.get("level", 0),
                             "hp": h.hp if h else 0, "hp_max": h.hp_max if h else 0, "alive": bool(h and h.alive),
@@ -309,5 +309,5 @@ class DotaEnv:
         return {"index": self.cfg.index, "pid": st["pid"], "phase": self.phase, "game_time": ws.dota_time if ws else 0.0,
                 "speed_x": round(self.speed_x(), 2), "heroes": heroes, "kills": kills, "last_hits": last_hits,
                 "episode": self.episode, "lua_timeouts": to, "lua_mismatch": mm, "last_error": self.last_error,
-                "cpu": st["cpu"], "rss_mb": round(st["rss_mb"]), "teams": teams, "cap_s": self.matchup.cap_s,
-                "frames": self.matchup.frames, "steps": self._steps}
+                "cpu": st["cpu"], "rss_mb": round(st["rss_mb"]), "teams": teams, "cap_s": self.matchup.cap_s if self.matchup else None,
+                "frames": self.matchup.frames if self.matchup else None, "steps": self._steps}
