@@ -16,16 +16,18 @@ CAP = float(sys.argv[3]) if len(sys.argv) > 3 else 150
 
 
 class Slow:
-    """The fleet calls act_batch; everything else is delegated to the real policy."""
+    """Every act* call of the real policy sleeps first; everything else is delegated."""
     def __init__(self, inner):
         self.inner = inner
 
-    def act_batch(self, items):
-        time.sleep(SLEEP)
-        return self.inner.act_batch(items)
-
     def __getattr__(self, name):
-        return getattr(self.inner, name)
+        attr = getattr(self.inner, name)
+        if name.startswith("act") and callable(attr):
+            def slow(*a, **k):
+                time.sleep(SLEEP)
+                return attr(*a, **k)
+            return slow
+        return attr
 
 
 async def main():
@@ -40,7 +42,7 @@ async def main():
             ws = f.envs[i].last_ws
             print(f"env {i} done wall {time.time() - t0:.0f}s dota_time {ws.dota_time if ws else None} end {info.get('end')} "
                   f"post_game {info.get('post_game')} error {info.get('error')}", flush=True)
-    r = await f.run(1, on_step=on_step)
+    r = await f.run(N, on_step=on_step)
     print({k: r[k] for k in ("episodes", "steps", "lua_timeouts", "ends")}, "wall", round(time.time() - t0, 1))
     print("full pre-game logs:", sorted(p.name for p in (out / "end_logs").glob("pregame_*")))
 
