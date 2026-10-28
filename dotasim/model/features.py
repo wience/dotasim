@@ -15,6 +15,13 @@ HERO_DIM = 24
 N_TYPES = 7   # none, move, attack, cast x4
 KINDS = ("hero", "creep", "tower", "other")
 POS_SCALE, MAP_SCALE = 1500.0, 8000.0
+CENTER = (-430.0, -390.0)   # midpoint of the mid-lane tier 1/2 towers; the map is close to a 180-degree rotation about it
+
+
+def canon_sign(team: int) -> float:
+    """Dire sees the map rotated 180 degrees about CENTER, so every hero plays 'as Radiant': lane is north-east,
+    fountain south-west. Applied to positions, facings and move directions (labels and decoding alike)."""
+    return -1.0 if team == 3 else 1.0
 
 
 @dataclass
@@ -42,10 +49,12 @@ def featurize(ws: WorldState, team: int) -> Features:
     if me is None:
         return Features(units, mask, handles, hero, type_mask)
 
+    sg = canon_sign(team)
     ordered = sorted(ws.units, key=lambda u: (u is not me, (u.x - me.x) ** 2 + (u.y - me.y) ** 2))[:K]
     for i, u in enumerate(ordered):
-        dx, dy = (u.x - me.x) / POS_SCALE, (u.y - me.y) / POS_SCALE
+        dx, dy = sg * (u.x - me.x) / POS_SCALE, sg * (u.y - me.y) / POS_SCALE
         c, s = _facing(u.facing)
+        c, s = sg * c, sg * s
         units[i, KINDS.index(u.kind)] = 1.0
         units[i, 4] = float(u.team != team)
         units[i, 5], units[i, 6], units[i, 7] = dx, dy, math.hypot(dx, dy)
@@ -62,7 +71,8 @@ def featurize(ws: WorldState, team: int) -> Features:
     c, s = _facing(me.facing)
     hero[:12] = [me.level / 25.0, me.hp / me.hp_max if me.hp_max else 0.0, me.mana / me.mana_max if me.mana_max else 0.0,
                  max(me.gold, 0) / 2000.0, max(me.last_hits, 0) / 100.0, max(me.denies, 0) / 50.0,
-                 max(me.net_worth, 0) / 5000.0, ws.dota_time / 600.0, me.x / MAP_SCALE, me.y / MAP_SCALE, c, s]
+                 max(me.net_worth, 0) / 5000.0, ws.dota_time / 600.0,
+                 sg * (me.x - CENTER[0]) / MAP_SCALE, sg * (me.y - CENTER[1]) / MAP_SCALE, sg * c, sg * s]
     by_id = {a[0]: a for a in me.abilities}
     for j, aid in enumerate(ACTIVE_IDS.get(me.name, ())):
         a = by_id.get(aid)

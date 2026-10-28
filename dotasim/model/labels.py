@@ -7,7 +7,7 @@ from dataclasses import dataclass
 import numpy as np
 
 from dotasim.env.worldstate import WorldState
-from dotasim.model.features import Features
+from dotasim.model.features import Features, canon_sign
 from dotasim.model.heroes import ACTIVE_IDS
 
 NONE, MOVE, ATTACK, CAST_BASE = 0, 1, 2, 3
@@ -52,7 +52,8 @@ def label(ws: WorldState, next_ws: WorldState, feats: Features, team: int, far_w
         return Labels(NONE)   # target outside the K nearest tokens, or already dead (e.g. a finished deny)
     far = (far_ws or next_ws).hero_of(team)
     if far is not None and far.alive:
-        dx, dy = far.x - me.x, far.y - me.y
+        sg = canon_sign(team)   # Dire's displacement is expressed in the canonical (Radiant) frame, like the features
+        dx, dy = sg * (far.x - me.x), sg * (far.y - me.y)
         d = math.hypot(dx, dy)
         if MOVE_MIN <= d <= MOVE_MAX:
             return Labels(MOVE, move_dir=direction_bin(dx, dy), move_dist=distance_bin(d))

@@ -56,7 +56,7 @@ class NetPolicy:
         {"action": Action, "a": {type,dir,dist,target}, "logp", "value", "h0": np[hidden], "feats": Features}."""
         import numpy as np
         import torch
-        from dotasim.model.features import featurize
+        from dotasim.model.features import canon_sign, featurize
         from dotasim.model.net import masked_log_probs
         from dotasim.train.ppo import joint_log_prob
 
@@ -91,7 +91,7 @@ class NetPolicy:
     def value_of(self, env_index: int, team: int, ws: WorldState) -> float:
         """V(s) for a final observation, from the current GRU state, without advancing it (bootstrap at cap)."""
         import torch
-        from dotasim.model.features import featurize
+        from dotasim.model.features import canon_sign, featurize
 
         f = featurize(ws, team)
         h0 = self.states.get((env_index, team), self.net.initial_state(1)[0]).unsqueeze(0)
@@ -102,6 +102,7 @@ class NetPolicy:
 
     @staticmethod
     def _to_action(ws: WorldState, team: int, f, a: dict[str, int]) -> Action:
+        from dotasim.model.features import canon_sign
         from dotasim.model.heroes import ACTIVE_NAMES
         from dotasim.model.labels import ATTACK, CAST_BASE, DIST_VALUES, MOVE, N_DIRS
 
@@ -110,7 +111,7 @@ class NetPolicy:
             return Action()
         if a["type"] == MOVE:
             ang = (a["dir"] + 0.5) * 2 * math.pi / N_DIRS
-            d = DIST_VALUES[a["dist"]]
+            d = DIST_VALUES[a["dist"]] * canon_sign(team)   # the head picks a canonical direction; Dire's world is rotated
             return Action("move", hero.x + d * math.cos(ang), hero.y + d * math.sin(ang))
         if a["type"] == ATTACK:
             handle = int(f.unit_handles[a["target"]])
@@ -122,7 +123,7 @@ class NetPolicy:
 
     def act(self, obs: dict[int, WorldState]) -> dict[int, Action]:
         import torch
-        from dotasim.model.features import featurize
+        from dotasim.model.features import canon_sign, featurize
         from dotasim.model.heroes import ACTIVE_NAMES
         from dotasim.model.labels import ATTACK, CAST_BASE, DIST_VALUES, MOVE, N_DIRS
         from dotasim.model.net import sample
@@ -143,7 +144,7 @@ class NetPolicy:
                 out[team] = Action()
             elif a["type"] == MOVE:
                 ang = (a["dir"] + 0.5) * 2 * math.pi / N_DIRS
-                d = DIST_VALUES[a["dist"]]
+                d = DIST_VALUES[a["dist"]] * canon_sign(team)
                 out[team] = Action("move", hero.x + d * math.cos(ang), hero.y + d * math.sin(ang))
             elif a["type"] == ATTACK:
                 handle = int(f.unit_handles[a["target"]])

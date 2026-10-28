@@ -58,3 +58,15 @@ def test_labels_on_recorded_episode():
     assert n["cast"] >= 5, n
     pairs = [(a, b) for a, b in zip(dirs[:-1], dirs[1:]) if a is not None and b is not None]
     assert sum(a == b for a, b in pairs) / len(pairs) > 0.7, "move direction labels should mostly persist step to step"
+
+
+def test_dire_sees_the_canonical_frame(golden_ws_bytes):
+    """Both heroes must see the enemy's mid tier-2 tower down the lane axis (canonical north-east, dx + dy > 0):
+    Dire's world is rotated 180 degrees so one policy plays both sides. Before this, Dire farmed 0 while
+    Radiant farmed 7 (sp_v14). Without the rotation Dire's value here is about -3.5."""
+    ws = parse(golden_ws_bytes)
+    for team, enemy in ((2, "badguys"), (3, "goodguys")):
+        f = featurize(ws, team)
+        t = next(u for u in ws.units if u.name == f"npc_dota_{enemy}_tower2_mid")
+        i = int(np.nonzero(f.unit_handles == t.handle)[0][0])
+        assert f.units[i, 5] + f.units[i, 6] > 1.0, (team, f.units[i, 5:7])

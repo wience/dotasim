@@ -13,7 +13,7 @@ from dotasim.model.features import featurize
 from dotasim.model.labels import LOOKAHEAD, label
 
 WINDOW = 32
-LABELS_VERSION = 2   # bumps the feature cache when label() changes
+LABELS_VERSION = 3   # bumps the feature cache when label() or featurize() changes (3: Dire canonical frame)
 KEYS = ("units", "unit_mask", "hero", "type_mask", "y_type", "y_dir", "y_dist", "y_target")
 
 
