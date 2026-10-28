@@ -16,15 +16,16 @@ CAP = float(sys.argv[3]) if len(sys.argv) > 3 else 150
 
 
 class Slow:
+    """The fleet calls act_batch; everything else is delegated to the real policy."""
     def __init__(self, inner):
         self.inner = inner
 
-    def act(self, obs):
+    def act_batch(self, items):
         time.sleep(SLEEP)
-        return self.inner.act(obs)
+        return self.inner.act_batch(items)
 
-    def reset(self, *a, **k):
-        return getattr(self.inner, "reset", lambda *a, **k: None)(*a, **k)
+    def __getattr__(self, name):
+        return getattr(self.inner, name)
 
 
 async def main():
